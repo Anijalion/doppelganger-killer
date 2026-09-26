@@ -499,7 +499,7 @@ io.on('connection', (socket) => {
   });
 });
 
-app.get('*', (req, res, next) => {
+app.get('{*path}', (req, res, next) => {
   if (req.path.startsWith('/socket.io')) return next();
   res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
     if (err) next();
