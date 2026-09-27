@@ -136,6 +136,10 @@ export default function GameScreen() {
     setGameState(prev => prev ? { ...prev, goldenPaint } : prev);
   });
 
+  useSocketEvent('sonar_item_spawned', (sonarItem) => {
+    setGameState(prev => prev ? { ...prev, sonarItem } : prev);
+  });
+
   useSocketEvent('room_settings_updated', (data) => {
     setGameState(prev => prev ? { 
       ...prev, 

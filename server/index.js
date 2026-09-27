@@ -154,6 +154,7 @@ io.on('connection', (socket) => {
         mapSeed: Math.random(),
         goldenNpcIndex: Math.floor(Math.random() * 80),
         goldenPaint: { x: 1200, y: 1200, active: true },
+        sonarItem: { x: 800, y: 800, active: true },
         taskStations: TASK_STATIONS,
         vents: generateRandomVents(),
         totalTasksCompleted: 0,
@@ -183,7 +184,8 @@ io.on('connection', (socket) => {
       goldenPaintUntil: 0,
       stunUntil: 0,
       shieldUntil: 0,
-      shieldCooldownUntil: 0
+      shieldCooldownUntil: 0,
+      sonarCharges: 0
     };
 
     socket.emit('room_joined', { roomId, gameState: room });
@@ -311,7 +313,25 @@ io.on('connection', (socket) => {
         p.x = safeP.x;
         p.y = safeP.y;
       });
+
+      if (room.paintInterval) clearInterval(room.paintInterval);
+      if (room.sonarInterval) clearInterval(room.sonarInterval);
+      room.sonarItem = null;
+
       io.to(roomId).emit('game_started', { startTime: room.startTime, gameState: room });
+
+      // Spawn first sonar item 10 seconds into the game
+      setTimeout(() => {
+        if (room && room.state === 'playing' && (!room.sonarItem || !room.sonarItem.active)) {
+          const sonarPos = getRandomWallSafePosition();
+          room.sonarItem = {
+            x: sonarPos.x,
+            y: sonarPos.y,
+            active: true
+          };
+          io.to(roomId).emit('sonar_item_spawned', room.sonarItem);
+        }
+      }, 10000);
 
       room.paintInterval = setInterval(() => {
         if (room.state === 'playing') {
@@ -325,10 +345,23 @@ io.on('connection', (socket) => {
         }
       }, 25000);
 
+      room.sonarInterval = setInterval(() => {
+        if (room.state === 'playing') {
+          const sonarPos = getRandomWallSafePosition();
+          room.sonarItem = {
+            x: sonarPos.x,
+            y: sonarPos.y,
+            active: true
+          };
+          io.to(roomId).emit('sonar_item_spawned', room.sonarItem);
+        }
+      }, 35000);
+
       setTimeout(() => {
         if (room && room.state === 'playing') {
           room.state = 'finished';
           clearInterval(room.paintInterval);
+          if (room.sonarInterval) clearInterval(room.sonarInterval);
           const sorted = Object.values(room.players).sort((a, b) => b.score - a.score);
           io.to(roomId).emit('game_over', { leaderboard: sorted });
         }
@@ -417,6 +450,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('action_pickup_sonar', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room && room.sonarItem && room.sonarItem.active && room.players[socket.id]) {
+      room.sonarItem.active = false;
+      const player = room.players[socket.id];
+      if (player.isDead) return;
+      player.sonarCharges = 3;
+      io.to(roomId).emit('sonar_item_spawned', room.sonarItem);
+      io.to(roomId).emit('event_log', `📡 ${player.name} が生体ソナー端末を獲得！ (スキャン3発装填)`);
+      io.to(roomId).emit('player_updated', room.players);
+    }
+  });
+
   socket.on('action_kill', ({ roomId, targetId, isNpc, isGolden, x, y }) => {
     const room = rooms[roomId];
     if (!room || room.state !== 'playing') return;
@@ -467,6 +513,7 @@ io.on('connection', (socket) => {
 
       victim.isDead = true;
       victim.isGhost = true;
+      victim.sonarCharges = 0; // Sonar charges expire on death!
 
       io.to(roomId).emit('player_killed', { killerId: socket.id, victimId: targetId, x, y, killerX: player.x, killerY: player.y });
 
@@ -510,6 +557,41 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('player_updated', room.players);
   });
 
+  socket.on('action_sonar', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.state !== 'playing') return;
+    const player = room.players[socket.id];
+    if (!player || player.isDead || (player.stunUntil > Date.now())) return;
+    if ((player.sonarCharges || 0) <= 0) return;
+
+    player.sonarCharges -= 1;
+
+    const detectedTargets = [];
+    Object.values(room.players).forEach(other => {
+      if (other.id !== socket.id && !other.isDead) {
+        const isShielded = (other.shieldUntil || 0) > Date.now();
+        detectedTargets.push({
+          id: other.id,
+          name: other.name,
+          x: other.x,
+          y: other.y,
+          isShielded
+        });
+      }
+    });
+
+    io.to(roomId).emit('sonar_ping', {
+      emitterId: socket.id,
+      emitterName: player.name,
+      x: player.x,
+      y: player.y,
+      targets: detectedTargets,
+      chargesLeft: player.sonarCharges
+    });
+    io.to(roomId).emit('event_log', `📡 ${player.name} が生体ソナーを発射！ (残り${player.sonarCharges}発)`);
+    io.to(roomId).emit('player_updated', room.players);
+  });
+
   socket.on('action_task_completed', ({ roomId, taskId }) => {
     const room = rooms[roomId];
     if (room && room.players[socket.id] && room.state === 'playing') {
@@ -548,6 +630,9 @@ io.on('connection', (socket) => {
       room.startTime = null;
       room.totalTasksCompleted = 0;
       room.vents = generateRandomVents();
+      if (room.sonarInterval) clearInterval(room.sonarInterval);
+      if (room.paintInterval) clearInterval(room.paintInterval);
+      room.sonarItem = null;
       Object.values(room.players).forEach(p => {
         p.score = 0;
         p.kills = 0;
@@ -560,6 +645,7 @@ io.on('connection', (socket) => {
         p.stunUntil = 0;
         p.shieldUntil = 0;
         p.shieldCooldownUntil = 0;
+        p.sonarCharges = 0;
       });
       io.to(roomId).emit('room_reset', { gameState: room });
     }
@@ -572,6 +658,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('player_updated', room.players);
         if (Object.keys(room.players).length === 0) {
           if (room.paintInterval) clearInterval(room.paintInterval);
+          if (room.sonarInterval) clearInterval(room.sonarInterval);
           delete rooms[roomId];
         }
       }

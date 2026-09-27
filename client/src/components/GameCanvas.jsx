@@ -98,6 +98,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
   const crimeScenesRef = useRef([]);
   const footprintTrailsRef = useRef([]);
+  const sonarWavesRef = useRef([]);
+  const detectedTargetsRef = useRef([]);
 
   const bloodDecalsRef = useRef([]);
   const deadBodiesRef = useRef([]); 
@@ -171,6 +173,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     bloodDecalsRef.current = [];
     deadBodiesRef.current = [];
     floatingTextsRef.current = [];
+    sonarWavesRef.current = [];
+    detectedTargetsRef.current = [];
     localStunUntilRef.current = 0;
   });
 
@@ -180,6 +184,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     floatingTextsRef.current = [];
     crimeScenesRef.current = [];
     footprintTrailsRef.current = [];
+    sonarWavesRef.current = [];
+    detectedTargetsRef.current = [];
     localStunUntilRef.current = 0;
   });
 
@@ -258,6 +264,43 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
       color: '#38bdf8',
       life: 80
     });
+  });
+
+  useSocketEvent('sonar_item_spawned', (sonarItem) => {
+    const currentState = gameStateRef.current;
+    if (currentState) {
+      currentState.sonarItem = sonarItem;
+    }
+  });
+
+  useSocketEvent('sonar_ping', (data) => {
+    soundManager.playSonarPing();
+
+    sonarWavesRef.current.push({
+      x: data.x,
+      y: data.y,
+      currentRadius: 10,
+      maxRadius: 1400,
+      alpha: 1.0,
+      createdAt: Date.now()
+    });
+
+    if (data.emitterId === myId) {
+      if (data.targets && data.targets.length > 0) {
+        soundManager.playSonarLock();
+      }
+      detectedTargetsRef.current = {
+        targets: data.targets || [],
+        until: Date.now() + 2500
+      };
+      floatingTextsRef.current.push({
+        text: `📡 生体スキャン完了: ${data.targets.length}名検知!`,
+        x: data.x,
+        y: data.y - 45,
+        color: '#10b981',
+        life: 70
+      });
+    }
   });
 
   useSocketEvent('npc_killed', (data) => {
@@ -956,6 +999,22 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
           }
         }
 
+        if (state.sonarItem && state.sonarItem.active && !me.isDead) {
+          const distSonar = Math.hypot(state.sonarItem.x - me.x, state.sonarItem.y - me.y);
+          if (distSonar < 55) {
+            state.sonarItem.active = false; // Instant removal on contact!
+            soundManager.playSonarPickup();
+            socket.emit('action_pickup_sonar', { roomId });
+            floatingTextsRef.current.push({
+              text: '📡 生体ソナー端末獲得！ [3発装填]',
+              x: me.x,
+              y: me.y - 45,
+              color: '#34d399',
+              life: 80
+            });
+          }
+        }
+
         // Toxic Gas Damage Check
         if (isGasActive && !me.isDead) {
           const distToCenter = Math.hypot(me.x - 1200, me.y - 1200);
@@ -1106,6 +1165,68 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         ctx.fillText('GOLD PAINT', gp.x, gp.y + 34);
       }
 
+      // Biometric Sonar Item Terminal
+      if (state.sonarItem && state.sonarItem.active) {
+        const item = state.sonarItem;
+        ctx.save();
+        const pulse = Math.sin(Date.now() * 0.008) * 4;
+        const beaconRadius = 22 + pulse;
+
+        // Outer glow ripple
+        const rippleR = 26 + ((Date.now() * 0.03) % 20);
+        const rippleAlpha = Math.max(0, 1 - ((rippleR - 26) / 20));
+        ctx.strokeStyle = `rgba(52, 211, 153, ${rippleAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, rippleR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Terminal Base Circle
+        const grad = ctx.createRadialGradient(item.x, item.y, 4, item.x, item.y, beaconRadius);
+        grad.addColorStop(0, '#6ee7b7');
+        grad.addColorStop(0.6, '#059669');
+        grad.addColorStop(1, '#064e3b');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, beaconRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#a7f3d0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Rotating radar scan line inside beacon
+        const scanAngle = Date.now() * 0.004;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(item.x, item.y);
+        ctx.lineTo(item.x + Math.cos(scanAngle) * beaconRadius, item.y + Math.sin(scanAngle) * beaconRadius);
+        ctx.stroke();
+
+        // Icon / Emoji inside beacon
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('📡', item.x, item.y);
+
+        // Terminal Label Badge
+        ctx.fillStyle = '#064e3b';
+        ctx.fillRect(item.x - 48, item.y + 26, 96, 18);
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(item.x - 48, item.y + 26, 96, 18);
+
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = 'black 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('生体ソナー端末', item.x, item.y + 35);
+
+        ctx.restore();
+      }
+
       // Toxic Gas Safe Zone Ring & Outer Boundary Fog Overlay (Rendered ON TOP of all room floors so it is 100% visible everywhere!)
       if (isGasActive) {
         ctx.save();
@@ -1175,6 +1296,42 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+      }
+
+      // Sonar Shockwave Radar Pulse Animation
+      for (let i = sonarWavesRef.current.length - 1; i >= 0; i--) {
+        const wave = sonarWavesRef.current[i];
+        wave.currentRadius += 26;
+        wave.alpha = Math.max(0, 1.0 - (wave.currentRadius / wave.maxRadius));
+
+        if (wave.currentRadius >= wave.maxRadius || wave.alpha <= 0) {
+          sonarWavesRef.current.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = wave.alpha;
+
+        // Expanding high-tech radar wave ring
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.currentRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Secondary inner dashed radar ring
+        if (wave.currentRadius > 80) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 8]);
+          ctx.beginPath();
+          ctx.arc(wave.x, wave.y, wave.currentRadius - 50, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
         ctx.restore();
       }
 
@@ -1369,6 +1526,123 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
           isShielded
         );
       });
+
+      // Biometric Sonar Reticles / Target Locks (2.5s detection on living opponents)
+      if (detectedTargetsRef.current && Date.now() < detectedTargetsRef.current.until) {
+        const remainingMs = detectedTargetsRef.current.until - Date.now();
+        const remainingSec = (remainingMs / 1000).toFixed(1);
+        const pulse = Math.sin(Date.now() * 0.02) * 4;
+
+        (detectedTargetsRef.current.targets || []).forEach(targetInfo => {
+          const targetPlayer = state.players[targetInfo.id];
+          if (!targetPlayer || targetPlayer.isDead) return;
+
+          const tx = targetPlayer.x;
+          const ty = targetPlayer.y;
+          const isShielded = targetInfo.isShielded || ((targetPlayer.shieldUntil || 0) > Date.now());
+
+          ctx.save();
+          if (isShielded) {
+            // SHIELD JAMMED COUNTERPLAY VISUAL
+            ctx.fillStyle = '#f97316';
+            ctx.strokeStyle = '#fdba74';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(tx, ty, 34 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Jammed Badge
+            ctx.fillStyle = '#7c2d12';
+            ctx.fillRect(tx - 46, ty - 68, 92, 20);
+            ctx.strokeStyle = '#fb923c';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(tx - 46, ty - 68, 92, 20);
+
+            ctx.fillStyle = '#fdba74';
+            ctx.font = 'black 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('⚡ JAMMED!', tx, ty - 58);
+          } else {
+            // BIOMETRIC LOCK RETICLE ON REAL PLAYER
+            const boxSize = 36 + pulse;
+
+            // Neon emerald/cyan target frame
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#34d399';
+            ctx.shadowBlur = 14;
+
+            // Target lock corner brackets
+            const bLen = 10;
+            // Top-Left
+            ctx.beginPath();
+            ctx.moveTo(tx - boxSize, ty - boxSize + bLen);
+            ctx.lineTo(tx - boxSize, ty - boxSize);
+            ctx.lineTo(tx - boxSize + bLen, ty - boxSize);
+            ctx.stroke();
+            // Top-Right
+            ctx.beginPath();
+            ctx.moveTo(tx + boxSize - bLen, ty - boxSize);
+            ctx.lineTo(tx + boxSize, ty - boxSize);
+            ctx.lineTo(tx + boxSize, ty - boxSize + bLen);
+            ctx.stroke();
+            // Bottom-Left
+            ctx.beginPath();
+            ctx.moveTo(tx - boxSize, ty + boxSize - bLen);
+            ctx.lineTo(tx - boxSize, ty + boxSize);
+            ctx.lineTo(tx - boxSize + bLen, ty + boxSize);
+            ctx.stroke();
+            // Bottom-Right
+            ctx.beginPath();
+            ctx.moveTo(tx + boxSize - bLen, ty + boxSize);
+            ctx.lineTo(tx + boxSize, ty + boxSize);
+            ctx.lineTo(tx + boxSize, ty + boxSize - bLen);
+            ctx.stroke();
+
+            // Inner pulsing lock circle
+            ctx.strokeStyle = '#34d399';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.arc(tx, ty, boxSize * 0.7, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Lock-on Crosshairs
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty - boxSize - 6);
+            ctx.lineTo(tx, ty - boxSize + 2);
+            ctx.moveTo(tx, ty + boxSize - 2);
+            ctx.lineTo(tx, ty + boxSize + 6);
+            ctx.moveTo(tx - boxSize - 6, ty);
+            ctx.lineTo(tx - boxSize + 2, ty);
+            ctx.moveTo(tx + boxSize - 2, ty);
+            ctx.lineTo(tx + boxSize + 6, ty);
+            ctx.stroke();
+
+            // Prominent "生体検知 (PLAYER)" Lock-on Banner above character
+            const badgeW = 120;
+            const badgeH = 22;
+            const badgeY = ty - 68;
+
+            ctx.fillStyle = 'rgba(6, 78, 59, 0.9)';
+            ctx.fillRect(tx - badgeW / 2, badgeY, badgeW, badgeH);
+            ctx.strokeStyle = '#34d399';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(tx - badgeW / 2, badgeY, badgeW, badgeH);
+
+            ctx.fillStyle = '#a7f3d0';
+            ctx.font = 'black 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`📡 プレイヤー [${remainingSec}s]`, tx, badgeY + badgeH / 2);
+          }
+          ctx.restore();
+        });
+      }
 
       // Blood Particles
       for (let i = bloodParticles.length - 1; i >= 0; i--) {

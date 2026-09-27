@@ -359,6 +359,46 @@ class SoundEngine {
       osc.stop(now + 0.2);
     } catch (e) {}
   }
+
+  playSonarPing() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      const now = this.ctx.currentTime;
+      // Resonant deep sonar ping
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1150, now);
+      osc.frequency.exponentialRampToValueAtTime(280, now + 0.55);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.6);
+    } catch (e) {}
+  }
+
+  playSonarLock() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      // Rapid lock-on alert
+      this.playTone(1100, 'triangle', 0.25, 0.1, 0.005);
+      setTimeout(() => this.playTone(1500, 'sine', 0.35, 0.15, 0.005), 80);
+    } catch (e) {}
+  }
+
+  playSonarPickup() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      this.playTone(440, 'triangle', 0.25, 0.1, 0.01);
+      setTimeout(() => this.playTone(660, 'triangle', 0.3, 0.12, 0.01), 60);
+      setTimeout(() => this.playTone(990, 'sine', 0.35, 0.2, 0.01), 120);
+    } catch (e) {}
+  }
 }
 
 export const soundManager = new SoundEngine();

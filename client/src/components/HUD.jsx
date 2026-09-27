@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Target, AlertTriangle, Zap, Volume2, VolumeX, Trophy, Skull, RefreshCw, Footprints, Wind, Sparkles, Maximize, Minimize, Shield } from 'lucide-react';
+import { Target, AlertTriangle, Zap, Volume2, VolumeX, Trophy, Skull, RefreshCw, Footprints, Wind, Sparkles, Maximize, Minimize, Shield, Radar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocketEvent } from '../hooks/useSocketEvent';
 import { soundManager } from '../utils/audio';
@@ -151,16 +151,26 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
     socket.emit('action_shield', { roomId });
   };
 
+  const sonarCharges = myPlayer?.sonarCharges || 0;
+  const handleSonar = () => {
+    if (!myPlayer || myPlayer.isDead || isStunned) return;
+    if (sonarCharges <= 0) return;
+    socket.emit('action_sonar', { roomId });
+  };
+
   useEffect(() => {
     const handleKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.code === 'KeyE') {
         handleShield();
       }
+      if (e.code === 'KeyF') {
+        handleSonar();
+      }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [myPlayer, isStunned, isShieldActive, isShieldOnCooldown, shieldDuration, roomId]);
+  }, [myPlayer, isStunned, isShieldActive, isShieldOnCooldown, shieldDuration, sonarCharges, roomId]);
 
   const handleTaskComplete = () => {
     if (activeTask) {
@@ -457,6 +467,47 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
               </span>
             </motion.button>
           )}
+
+          {/* Biometric Sonar Pulse Button - ONLY VISIBLE WHEN CHARGES > 0 AND PLAYER IS ALIVE */}
+          <AnimatePresence>
+            {sonarCharges > 0 && !myPlayer.isDead && (
+              <motion.button
+                key="sonar-pulse-btn"
+                initial={{ scale: 0, opacity: 0, x: 20 }}
+                animate={{ scale: 1, opacity: 1, x: 0 }}
+                exit={{ scale: 0, opacity: 0, x: 20 }}
+                transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                whileHover={!isStunned ? { scale: 1.08 } : {}}
+                whileTap={!isStunned ? { scale: 0.92 } : {}}
+                onClick={handleSonar}
+                onTouchStart={(e) => {
+                  if (!myPlayer.isDead && !isStunned) {
+                    e.preventDefault();
+                    handleSonar();
+                  }
+                }}
+                disabled={myPlayer.isDead || isStunned}
+                className={`h-12 px-3.5 rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all text-xs font-black select-none touch-none ${
+                  isStunned 
+                    ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
+                    : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white border-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.8)] active:scale-90'
+                }`}
+                title={`生体ソナー発射！ 残り${sonarCharges}発 (ショートカットキー: F)`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <Radar size={19} className="text-emerald-200 animate-spin-slow" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-300 rounded-full animate-ping"></span>
+                </div>
+                <span className="tracking-wider text-xs flex items-center gap-1">
+                  <span>ソナー</span>
+                  <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-400/60 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                    {sonarCharges}発
+                  </span>
+                  <span className="text-[10px] text-emerald-200/80">[F]</span>
+                </span>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* KILL Button */}
           {(() => {
