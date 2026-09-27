@@ -314,6 +314,51 @@ class SoundEngine {
     this.init();
     this.playTone(120 + Math.random() * 40, 'sine', 0.05, 0.05, 0.001);
   }
+
+  playShield() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      const now = this.ctx.currentTime;
+      // High-tech energy barrier activation
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(740, now + 0.25);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+
+      // Harmonious upper chime
+      setTimeout(() => {
+        this.playTone(880, 'triangle', 0.2, 0.35, 0.01);
+      }, 100);
+    } catch (e) {}
+  }
+
+  playShieldBlock() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      const now = this.ctx.currentTime;
+      // Metallic shield deflection ping
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(950, now);
+      osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } catch (e) {}
+  }
 }
 
 export const soundManager = new SoundEngine();

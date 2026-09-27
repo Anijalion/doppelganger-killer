@@ -13,7 +13,9 @@ import {
   Play, 
   Settings, 
   ChevronDown, 
-  ChevronUp 
+  ChevronUp,
+  Shield,
+  Timer
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { socket } from '../socket';
@@ -140,6 +142,8 @@ export default function GameScreen() {
       gameDuration: data.gameDuration, 
       crownDurationSec: data.crownDurationSec,
       poisonGasStartSec: data.poisonGasStartSec,
+      shieldDurationSec: data.shieldDurationSec,
+      shieldCooldownSec: data.shieldCooldownSec,
       scoreSettings: data.scoreSettings
     } : prev);
   });
@@ -488,7 +492,75 @@ export default function GameScreen() {
                   </div>
                 </div>
 
-                {/* 4. Score Settings Expandable */}
+                {/* 4. Shield Duration */}
+                <div>
+                  <label className="text-[11px] font-bold text-sky-300 block mb-1.5 flex items-center gap-1.5">
+                    <Shield size={13} className="text-sky-400" />
+                    シールド無敵時間 (効果秒数)
+                  </label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {[
+                      { sec: 0, label: 'オフ' },
+                      { sec: 2, label: '2秒' },
+                      { sec: 3, label: '3秒 ★' },
+                      { sec: 5, label: '5秒' },
+                      { sec: 8, label: '8秒' },
+                    ].map(item => {
+                      const currentShieldSec = gameState.shieldDurationSec !== undefined ? gameState.shieldDurationSec : 3;
+                      const isSelected = currentShieldSec === item.sec;
+                      return (
+                        <button
+                          key={item.sec}
+                          type="button"
+                          onClick={() => socket.emit('set_shield_duration', { roomId, durationSec: item.sec })}
+                          className={`py-1.5 rounded-xl text-center font-bold text-[11px] transition-all border ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-sky-500 via-blue-600 to-cyan-600 text-white border-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.5)] font-black scale-105'
+                              : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 5. Shield Cooldown */}
+                <div>
+                  <label className="text-[11px] font-bold text-teal-300 block mb-1.5 flex items-center gap-1.5">
+                    <Timer size={13} className="text-teal-400" />
+                    シールドのクールタイム
+                  </label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {[
+                      { sec: 10, label: '10秒' },
+                      { sec: 15, label: '15秒 ★' },
+                      { sec: 20, label: '20秒' },
+                      { sec: 30, label: '30秒' },
+                      { sec: 45, label: '45秒' },
+                    ].map(item => {
+                      const currentCdSec = gameState.shieldCooldownSec || 15;
+                      const isSelected = currentCdSec === item.sec;
+                      return (
+                        <button
+                          key={item.sec}
+                          type="button"
+                          onClick={() => socket.emit('set_shield_cooldown', { roomId, cooldownSec: item.sec })}
+                          className={`py-1.5 rounded-xl text-center font-bold text-[11px] transition-all border ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 text-white border-teal-300 shadow-[0_0_12px_rgba(20,184,166,0.5)] font-black scale-105'
+                              : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 6. Score Settings Expandable */}
                 <div className="pt-2 border-t border-slate-800">
                   <button
                     type="button"
@@ -635,6 +707,7 @@ export default function GameScreen() {
                 <span>ゲームを開始する！</span>
                 <span className="text-xs bg-black/30 font-bold px-2.5 py-1 rounded-full border border-white/20">
                   {Math.floor((gameState.gameDuration || 180000) / 60000)}分戦
+                  {gameState.shieldDurationSec !== 0 ? ` | 🛡️無敵${gameState.shieldDurationSec ?? 3}秒` : ' | 🛡️無効'}
                 </span>
               </motion.button>
 

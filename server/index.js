@@ -142,6 +142,8 @@ io.on('connection', (socket) => {
         gameDuration: 180 * 1000,
         crownDurationSec: 60,
         poisonGasStartSec: 60,
+        shieldDurationSec: 3,
+        shieldCooldownSec: 15,
         scoreSettings: {
           playerKill: 1000,
           npcMistake: 500,
@@ -179,7 +181,9 @@ io.on('connection', (socket) => {
       isGhost: false,
       isGoldenPaint: false,
       goldenPaintUntil: 0,
-      stunUntil: 0
+      stunUntil: 0,
+      shieldUntil: 0,
+      shieldCooldownUntil: 0
     };
 
     socket.emit('room_joined', { roomId, gameState: room });
@@ -196,6 +200,8 @@ io.on('connection', (socket) => {
           gameDuration: room.gameDuration,
           crownDurationSec: room.crownDurationSec,
           poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -212,6 +218,8 @@ io.on('connection', (socket) => {
           gameDuration: room.gameDuration,
           crownDurationSec: room.crownDurationSec,
           poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -228,6 +236,44 @@ io.on('connection', (socket) => {
           gameDuration: room.gameDuration,
           crownDurationSec: room.crownDurationSec,
           poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
+          scoreSettings: room.scoreSettings
+        });
+      }
+    }
+  });
+
+  socket.on('set_shield_duration', ({ roomId, durationSec }) => {
+    const room = rooms[roomId];
+    if (room && room.state === 'waiting') {
+      const validDurations = [0, 2, 3, 5, 8];
+      if (validDurations.includes(durationSec)) {
+        room.shieldDurationSec = durationSec;
+        io.to(roomId).emit('room_settings_updated', {
+          gameDuration: room.gameDuration,
+          crownDurationSec: room.crownDurationSec,
+          poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
+          scoreSettings: room.scoreSettings
+        });
+      }
+    }
+  });
+
+  socket.on('set_shield_cooldown', ({ roomId, cooldownSec }) => {
+    const room = rooms[roomId];
+    if (room && room.state === 'waiting') {
+      const validCooldowns = [10, 15, 20, 30, 45];
+      if (validCooldowns.includes(cooldownSec)) {
+        room.shieldCooldownSec = cooldownSec;
+        io.to(roomId).emit('room_settings_updated', {
+          gameDuration: room.gameDuration,
+          crownDurationSec: room.crownDurationSec,
+          poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -245,6 +291,8 @@ io.on('connection', (socket) => {
         gameDuration: room.gameDuration,
         crownDurationSec: room.crownDurationSec,
         poisonGasStartSec: room.poisonGasStartSec,
+        shieldDurationSec: room.shieldDurationSec,
+        shieldCooldownSec: room.shieldCooldownSec,
         scoreSettings: room.scoreSettings
       });
     }
@@ -395,6 +443,13 @@ io.on('connection', (socket) => {
       }
     } else if (targetId && room.players[targetId] && !room.players[targetId].isDead) {
       const victim = room.players[targetId];
+
+      // Check if victim has an active invincibility shield
+      if (victim.shieldUntil && victim.shieldUntil > Date.now()) {
+        io.to(roomId).emit('kill_blocked', { killerId: socket.id, victimId: targetId, x: victim.x, y: victim.y });
+        io.to(roomId).emit('event_log', `🛡️ ${victim.name} はシールド無敵中！ ${player.name} の暗殺を防いだ！`);
+        return;
+      }
       
       if (victim.isGoldenPaint) {
         const bonusKillPts = Math.floor(killPts * 1.5);
@@ -428,6 +483,30 @@ io.on('connection', (socket) => {
       }, 4000);
     }
 
+    io.to(roomId).emit('player_updated', room.players);
+  });
+
+  socket.on('action_shield', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.state !== 'playing') return;
+    if ((room.shieldDurationSec ?? 3) === 0) return; // Disabled
+
+    const player = room.players[socket.id];
+    if (!player || player.isDead || (player.stunUntil > Date.now())) return;
+    if ((player.shieldCooldownUntil || 0) > Date.now()) return; // On cooldown
+
+    const durSec = room.shieldDurationSec ?? 3;
+    const cdSec = room.shieldCooldownSec ?? 15;
+
+    player.shieldUntil = Date.now() + (durSec * 1000);
+    player.shieldCooldownUntil = Date.now() + (cdSec * 1000);
+
+    io.to(roomId).emit('player_shielded', {
+      playerId: socket.id,
+      shieldUntil: player.shieldUntil,
+      shieldCooldownUntil: player.shieldCooldownUntil
+    });
+    io.to(roomId).emit('event_log', `🛡️ ${player.name} がシールドを発動！ (${durSec}秒間無敵)`);
     io.to(roomId).emit('player_updated', room.players);
   });
 
@@ -479,6 +558,8 @@ io.on('connection', (socket) => {
         p.isDead = false;
         p.isGhost = false;
         p.stunUntil = 0;
+        p.shieldUntil = 0;
+        p.shieldCooldownUntil = 0;
       });
       io.to(roomId).emit('room_reset', { gameState: room });
     }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Target, AlertTriangle, Zap, Volume2, VolumeX, Trophy, Skull, RefreshCw, Footprints, Wind, Sparkles, Maximize, Minimize } from 'lucide-react';
+import { Target, AlertTriangle, Zap, Volume2, VolumeX, Trophy, Skull, RefreshCw, Footprints, Wind, Sparkles, Maximize, Minimize, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocketEvent } from '../hooks/useSocketEvent';
 import { soundManager } from '../utils/audio';
@@ -136,6 +136,31 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       socket.emit('action_panic', { roomId });
     }
   };
+
+  const isStunned = (localStunUntil > Date.now()) || ((myPlayer?.stunUntil || 0) > Date.now());
+  const shieldDuration = gameState.shieldDurationSec !== undefined ? gameState.shieldDurationSec : 3;
+  const isShieldActive = (myPlayer?.shieldUntil || 0) > Date.now();
+  const shieldActiveSec = Math.ceil(((myPlayer?.shieldUntil || 0) - Date.now()) / 1000);
+  const isShieldOnCooldown = (myPlayer?.shieldCooldownUntil || 0) > Date.now();
+  const shieldCooldownSec = Math.ceil(((myPlayer?.shieldCooldownUntil || 0) - Date.now()) / 1000);
+
+  const handleShield = () => {
+    if (!myPlayer || myPlayer.isDead || isStunned) return;
+    if (isShieldActive || isShieldOnCooldown) return;
+    if (shieldDuration === 0) return;
+    socket.emit('action_shield', { roomId });
+  };
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.code === 'KeyE') {
+        handleShield();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [myPlayer, isStunned, isShieldActive, isShieldOnCooldown, shieldDuration, roomId]);
 
   const handleTaskComplete = () => {
     if (activeTask) {
@@ -401,6 +426,37 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
             <Zap size={18} className="text-yellow-300 animate-pulse flex-shrink-0" />
             <span className="tracking-wider text-xs">ダッシュ [SHIFT]</span>
           </motion.button>
+
+          {/* Shield Button */}
+          {shieldDuration > 0 && (
+            <motion.button
+              whileHover={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 1.08 } : {}}
+              whileTap={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 0.92 } : {}}
+              onClick={handleShield}
+              onTouchStart={(e) => {
+                if (!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) {
+                  e.preventDefault();
+                  handleShield();
+                }
+              }}
+              disabled={isShieldOnCooldown || isShieldActive || isStunned || myPlayer.isDead}
+              className={`h-12 px-3.5 rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all text-xs font-black select-none touch-none ${
+                isShieldActive
+                  ? 'bg-gradient-to-r from-cyan-500 via-sky-400 to-cyan-500 text-slate-950 border-white shadow-[0_0_25px_rgba(56,189,248,1)] animate-pulse'
+                  : isShieldOnCooldown
+                    ? 'bg-slate-900/90 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                    : isStunned || myPlayer.isDead
+                      ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500'
+                      : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border-cyan-300 shadow-[0_0_18px_rgba(14,165,233,0.7)] active:scale-90'
+              }`}
+              title={isShieldActive ? `無敵中 (${shieldActiveSec}秒)` : isShieldOnCooldown ? `クールタイム中 (${shieldCooldownSec}秒)` : 'シールド展開！ (ショートカットキー: E)'}
+            >
+              <Shield size={18} className={isShieldActive ? 'text-slate-950 animate-bounce' : 'text-cyan-200'} />
+              <span className="tracking-wider text-xs">
+                {isShieldActive ? `無敵! ${shieldActiveSec}s` : isShieldOnCooldown ? `待機 ${shieldCooldownSec}s` : 'シールド [E]'}
+              </span>
+            </motion.button>
+          )}
 
           {/* KILL Button */}
           {(() => {

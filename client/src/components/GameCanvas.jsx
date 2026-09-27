@@ -238,6 +238,28 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     }
   });
 
+  useSocketEvent('player_shielded', (data) => {
+    const currentState = gameStateRef.current;
+    if (currentState && currentState.players[data.playerId]) {
+      currentState.players[data.playerId].shieldUntil = data.shieldUntil;
+      currentState.players[data.playerId].shieldCooldownUntil = data.shieldCooldownUntil;
+    }
+    if (data.playerId === myId) {
+      soundManager.playShield();
+    }
+  });
+
+  useSocketEvent('kill_blocked', (data) => {
+    soundManager.playShieldBlock();
+    floatingTextsRef.current.push({
+      text: '🛡️ SHIELD BLOCKED!',
+      x: data.x,
+      y: data.y - 45,
+      color: '#38bdf8',
+      life: 80
+    });
+  });
+
   useSocketEvent('npc_killed', (data) => {
     const now = Date.now();
     const currentState = gameStateRef.current;
@@ -504,7 +526,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     let isLastMinute = false;
 
     // FIX FOR DRIFTING LEGS: Math.sin(animStep) * 6 BOUNDS LEG STEP TO [-6, +6] PIXELS STRICTLY!
-    const drawCharacter = (x, y, color, hat, facingLeft, isMoving, animStep, isStealth, crown, isMe, playerName, isTargetLocked, isGhost, isStunned) => {
+    const drawCharacter = (x, y, color, hat, facingLeft, isMoving, animStep, isStealth, crown, isMe, playerName, isTargetLocked, isGhost, isStunned, isShielded) => {
       ctx.save();
 
       const breathWobble = Math.sin(Date.now() * 0.005) * 1.5;
@@ -512,6 +534,61 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
       if (facingLeft) ctx.scale(-1, 1);
       if (isGhost) ctx.globalAlpha = 0.45;
+
+      // SHIELD INVINCIBILITY BARRIER AURA & ORBITING PARTICLES
+      if (isShielded) {
+        ctx.save();
+        const pulse = Math.sin(Date.now() * 0.015) * 4;
+        const shieldRadius = 38 + pulse;
+
+        // Rotating dashed energy barrier ring
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#0284c7';
+        ctx.shadowBlur = 16;
+        ctx.setLineDash([10, 5]);
+        ctx.lineDashOffset = -Date.now() * 0.02;
+        ctx.beginPath();
+        ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Radial gradient barrier glow
+        const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, shieldRadius);
+        grad.addColorStop(0, 'rgba(56, 189, 248, 0.08)');
+        grad.addColorStop(0.7, 'rgba(14, 165, 233, 0.28)');
+        grad.addColorStop(1, 'rgba(2, 132, 199, 0.65)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 3 orbiting energy sparks
+        for (let i = 0; i < 3; i++) {
+          const angle = Date.now() * 0.005 + (i * Math.PI * 2 / 3);
+          const px = Math.cos(angle) * (shieldRadius - 2);
+          const py = Math.sin(angle) * (shieldRadius - 2);
+          ctx.fillStyle = '#bae6fd';
+          ctx.beginPath();
+          ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Floating Shield Badge above player head
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.arc(0, -44, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🛡️', 0, -43);
+
+        ctx.restore();
+      }
 
       if (isTargetLocked) {
         ctx.strokeStyle = '#ef4444';
@@ -1261,7 +1338,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         const npcColor = npc.isGolden ? '#fbbf24' : '#94a3b8';
         const isLocked = lockedTargetId === npc.id;
 
-        drawCharacter(npc.x, npc.y, npcColor, 'none', npc.facingLeft, isNpcMoving, npc.animStep, false, false, false, '', isLocked, false, false);
+        drawCharacter(npc.x, npc.y, npcColor, 'none', npc.facingLeft, isNpcMoving, npc.animStep, false, false, false, '', isLocked, false, false, false);
       });
 
       // Draw Players (Including Ghosts)
@@ -1275,6 +1352,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         const isLocked = lockedTargetId === p.id;
         const isP = isMe ? isMeMoving : true;
         const isStunned = isMe ? ((localStunUntilRef.current > Date.now()) || ((p.stunUntil || 0) > Date.now())) : ((p.stunUntil || 0) > Date.now());
+        const isShielded = (p.shieldUntil || 0) > Date.now();
 
         drawCharacter(
           p.x, p.y, color, p.hat,
@@ -1287,7 +1365,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
           p.name,
           isLocked,
           p.isGhost,
-          isStunned
+          isStunned,
+          isShielded
         );
       });
 
