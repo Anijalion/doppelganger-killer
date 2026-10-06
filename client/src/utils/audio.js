@@ -377,6 +377,12 @@ class SoundEngine {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.6);
+      setTimeout(() => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (e) {}
+      }, 700);
     } catch (e) {}
   }
 

@@ -563,6 +563,8 @@ io.on('connection', (socket) => {
     const player = room.players[socket.id];
     if (!player || player.isDead || (player.stunUntil > Date.now())) return;
     if ((player.sonarCharges || 0) <= 0) return;
+    if ((player.lastSonarTime || 0) > Date.now() - 600) return; // Prevent rapid spamming
+    player.lastSonarTime = Date.now();
 
     player.sonarCharges -= 1;
 

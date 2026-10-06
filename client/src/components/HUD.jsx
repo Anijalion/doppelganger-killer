@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Target, AlertTriangle, Zap, Volume2, VolumeX, Trophy, Skull, RefreshCw, Footprints, Wind, Sparkles, Maximize, Minimize, Shield, Radar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocketEvent } from '../hooks/useSocketEvent';
@@ -13,6 +13,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
   const [isFullscreen, setIsFullscreen] = useState(() => !!(document.fullscreenElement || document.webkitFullscreenElement));
   const [showPwaHint, setShowPwaHint] = useState(false);
   const [, setTick] = useState(0);
+  const lastSonarAtRef = useRef(0);
 
   // Force tick for smooth cooldown updates
   useEffect(() => {
@@ -155,12 +156,15 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
   const handleSonar = () => {
     if (!myPlayer || myPlayer.isDead || isStunned) return;
     if (sonarCharges <= 0) return;
+    if (Date.now() - lastSonarAtRef.current < 700) return; // Prevent spamming / double-triggers
+    lastSonarAtRef.current = Date.now();
     socket.emit('action_sonar', { roomId });
   };
 
   useEffect(() => {
     const handleKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.repeat) return; // Prevent auto-repeat when holding down keys
       if (e.code === 'KeyE') {
         handleShield();
       }

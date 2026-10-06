@@ -99,7 +99,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
   const crimeScenesRef = useRef([]);
   const footprintTrailsRef = useRef([]);
   const sonarWavesRef = useRef([]);
-  const detectedTargetsRef = useRef([]);
+  const detectedTargetsRef = useRef({ targets: [], until: 0 });
 
   const bloodDecalsRef = useRef([]);
   const deadBodiesRef = useRef([]); 
@@ -174,7 +174,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     deadBodiesRef.current = [];
     floatingTextsRef.current = [];
     sonarWavesRef.current = [];
-    detectedTargetsRef.current = [];
+    detectedTargetsRef.current = { targets: [], until: 0 };
     localStunUntilRef.current = 0;
   });
 
@@ -185,7 +185,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     crimeScenesRef.current = [];
     footprintTrailsRef.current = [];
     sonarWavesRef.current = [];
-    detectedTargetsRef.current = [];
+    detectedTargetsRef.current = { targets: [], until: 0 };
     localStunUntilRef.current = 0;
   });
 
@@ -1299,10 +1299,10 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         ctx.restore();
       }
 
-      // Sonar Shockwave Radar Pulse Animation
+      // Sonar Shockwave Radar Pulse Animation (High-Performance Zero-Blur Multi-Layer Neon)
       for (let i = sonarWavesRef.current.length - 1; i >= 0; i--) {
         const wave = sonarWavesRef.current[i];
-        wave.currentRadius += 26;
+        wave.currentRadius += 28;
         wave.alpha = Math.max(0, 1.0 - (wave.currentRadius / wave.maxRadius));
 
         if (wave.currentRadius >= wave.maxRadius || wave.alpha <= 0) {
@@ -1313,23 +1313,29 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         ctx.save();
         ctx.globalAlpha = wave.alpha;
 
-        // Expanding high-tech radar wave ring
-        ctx.strokeStyle = '#34d399';
-        ctx.lineWidth = 4;
-        ctx.shadowColor = '#10b981';
-        ctx.shadowBlur = 14;
+        // Pass 1: Outer soft glow halo (wide stroke, low alpha - 100% GPU accelerated, 0ms CPU blur)
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.22)';
+        ctx.lineWidth = 10;
         ctx.beginPath();
         ctx.arc(wave.x, wave.y, wave.currentRadius, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Secondary inner dashed radar ring
-        if (wave.currentRadius > 80) {
-          ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+        // Pass 2: Sharp vibrant core ring
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.currentRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Pass 3: Inner dashed auxiliary sweep ring
+        if (wave.currentRadius > 70) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
           ctx.lineWidth = 2;
           ctx.setLineDash([8, 8]);
           ctx.beginPath();
-          ctx.arc(wave.x, wave.y, wave.currentRadius - 50, 0, Math.PI * 2);
+          ctx.arc(wave.x, wave.y, wave.currentRadius - 40, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.setLineDash([]);
         }
 
         ctx.restore();
@@ -1543,10 +1549,15 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
           ctx.save();
           if (isShielded) {
-            // SHIELD JAMMED COUNTERPLAY VISUAL
-            ctx.fillStyle = '#f97316';
+            // SHIELD JAMMED COUNTERPLAY VISUAL (High performance, no shadowBlur)
+            ctx.strokeStyle = 'rgba(251, 146, 60, 0.3)';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.arc(tx, ty, 34 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
             ctx.strokeStyle = '#fdba74';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
             ctx.arc(tx, ty, 34 + pulse, 0, Math.PI * 2);
             ctx.stroke();
@@ -1564,54 +1575,51 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
             ctx.textBaseline = 'middle';
             ctx.fillText('⚡ JAMMED!', tx, ty - 58);
           } else {
-            // BIOMETRIC LOCK RETICLE ON REAL PLAYER
+            // BIOMETRIC LOCK RETICLE ON REAL PLAYER (High Performance Zero-Blur)
             const boxSize = 36 + pulse;
-
-            // Neon emerald/cyan target frame
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 3;
-            ctx.shadowColor = '#34d399';
-            ctx.shadowBlur = 14;
-
-            // Target lock corner brackets
             const bLen = 10;
-            // Top-Left
+
+            // Define all 4 corner brackets in a single path
             ctx.beginPath();
+            // Top-Left
             ctx.moveTo(tx - boxSize, ty - boxSize + bLen);
             ctx.lineTo(tx - boxSize, ty - boxSize);
             ctx.lineTo(tx - boxSize + bLen, ty - boxSize);
-            ctx.stroke();
             // Top-Right
-            ctx.beginPath();
             ctx.moveTo(tx + boxSize - bLen, ty - boxSize);
             ctx.lineTo(tx + boxSize, ty - boxSize);
             ctx.lineTo(tx + boxSize, ty - boxSize + bLen);
-            ctx.stroke();
             // Bottom-Left
-            ctx.beginPath();
             ctx.moveTo(tx - boxSize, ty + boxSize - bLen);
             ctx.lineTo(tx - boxSize, ty + boxSize);
             ctx.lineTo(tx - boxSize + bLen, ty + boxSize);
-            ctx.stroke();
             // Bottom-Right
-            ctx.beginPath();
             ctx.moveTo(tx + boxSize - bLen, ty + boxSize);
             ctx.lineTo(tx + boxSize, ty + boxSize);
             ctx.lineTo(tx + boxSize, ty + boxSize - bLen);
+
+            // Pass 1: Outer soft glow halo
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+            ctx.lineWidth = 7;
+            ctx.stroke();
+
+            // Pass 2: Crisp neon core
+            ctx.strokeStyle = '#34d399';
+            ctx.lineWidth = 2.5;
             ctx.stroke();
 
             // Inner pulsing lock circle
-            ctx.strokeStyle = '#34d399';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.85)';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.arc(tx, ty, boxSize * 0.7, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Lock-on Crosshairs
-            ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
-            ctx.lineWidth = 2;
+            // Lock-on Crosshairs in a single path
+            ctx.strokeStyle = 'rgba(110, 231, 183, 0.85)';
+            ctx.lineWidth = 1.8;
             ctx.beginPath();
             ctx.moveTo(tx, ty - boxSize - 6);
             ctx.lineTo(tx, ty - boxSize + 2);
@@ -1624,14 +1632,14 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
             ctx.stroke();
 
             // Prominent "生体検知 (PLAYER)" Lock-on Banner above character
-            const badgeW = 120;
+            const badgeW = 124;
             const badgeH = 22;
             const badgeY = ty - 68;
 
-            ctx.fillStyle = 'rgba(6, 78, 59, 0.9)';
+            ctx.fillStyle = 'rgba(6, 78, 59, 0.92)';
             ctx.fillRect(tx - badgeW / 2, badgeY, badgeW, badgeH);
             ctx.strokeStyle = '#34d399';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.8;
             ctx.strokeRect(tx - badgeW / 2, badgeY, badgeW, badgeH);
 
             ctx.fillStyle = '#a7f3d0';
