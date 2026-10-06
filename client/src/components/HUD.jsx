@@ -390,13 +390,14 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
         )}
       </AnimatePresence>
 
-      {/* FIXED BOTTOM-RIGHT ACTION BUTTONS - HIDDEN WHILE DOING TASK */}
+      {/* 2×2 GAMEPAD ACTION CLUSTER (OPTIMIZED FOR LANDSCAPE SMARTPHONES & KEYBOARD) */}
       {!activeTask && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 pointer-events-auto flex items-center gap-3">
-          {/* Panic Button */}
+        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 pointer-events-auto select-none touch-none flex flex-col items-end gap-1.5 sm:gap-2">
+          
+          {/* Top Pill Bar: Panic Bell Button (Safely placed above twitch zone) */}
           <motion.button
-            whileHover={!myPlayer.hasUsedPanic ? { scale: 1.08 } : {}}
-            whileTap={!myPlayer.hasUsedPanic ? { scale: 0.92 } : {}}
+            whileHover={!myPlayer.hasUsedPanic ? { scale: 1.06 } : {}}
+            whileTap={!myPlayer.hasUsedPanic ? { scale: 0.94 } : {}}
             onClick={handlePanic}
             onTouchStart={(e) => {
               if (!myPlayer.hasUsedPanic) {
@@ -405,144 +406,170 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
               }
             }}
             disabled={myPlayer.hasUsedPanic}
-            className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${
+            className={`h-7 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all text-[10px] font-black shadow-md ${
               myPlayer.hasUsedPanic 
-                ? 'bg-slate-800/80 text-slate-500 border-slate-700 cursor-not-allowed opacity-50' 
-                : 'bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white border-amber-300 shadow-[0_4px_15px_rgba(245,158,11,0.6)] active:scale-90'
+                ? 'bg-slate-800/80 text-slate-500 border-slate-700 cursor-not-allowed opacity-40' 
+                : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white border-amber-300 shadow-[0_2px_10px_rgba(245,158,11,0.5)] active:scale-95'
             }`}
             title={myPlayer.hasUsedPanic ? 'パニックベル使用済み (1ゲーム1回のみ)' : 'パニックベル発動！'}
           >
-            <AlertTriangle size={22} />
+            <AlertTriangle size={13} className={!myPlayer.hasUsedPanic ? 'animate-bounce' : ''} />
+            <span>パニック</span>
+            <span className="text-[9px] opacity-75">{myPlayer.hasUsedPanic ? '済' : '1回'}</span>
           </motion.button>
 
-          {/* Sprint / Dash Button */}
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            onMouseDown={() => window.dispatchEvent(new Event('action_sprint_start'))}
-            onMouseUp={() => window.dispatchEvent(new Event('action_sprint_end'))}
-            onMouseLeave={() => window.dispatchEvent(new Event('action_sprint_end'))}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              window.dispatchEvent(new Event('action_sprint_start'));
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              window.dispatchEvent(new Event('action_sprint_end'));
-            }}
-            onTouchCancel={(e) => {
-              e.preventDefault();
-              window.dispatchEvent(new Event('action_sprint_end'));
-            }}
-            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-3.5 h-12 rounded-2xl transition-all border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.7)] active:scale-90 flex items-center justify-center gap-1.5 font-black text-xs select-none touch-none"
-            title="高速移動スプリント (長押し / Shiftキー)"
-          >
-            <Zap size={18} className="text-yellow-300 animate-pulse flex-shrink-0" />
-            <span className="tracking-wider text-xs">ダッシュ [SHIFT]</span>
-          </motion.button>
+          {/* 2×2 Grid Action Layout */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
 
-          {/* Shield Button */}
-          {shieldDuration > 0 && (
-            <motion.button
-              whileHover={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 1.08 } : {}}
-              whileTap={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 0.92 } : {}}
-              onClick={handleShield}
-              onTouchStart={(e) => {
-                if (!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) {
+            {/* TOP-LEFT SLOT: SONAR (Dedicated Fixed Slot so other buttons NEVER shift!) */}
+            <div className="w-[84px] h-[48px] sm:w-[96px] sm:h-[52px] flex items-center justify-center">
+              <AnimatePresence>
+                {sonarCharges > 0 && !myPlayer.isDead && (
+                  <motion.button
+                    key="sonar-pulse-btn"
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                    whileHover={!isStunned ? { scale: 1.06 } : {}}
+                    whileTap={!isStunned ? { scale: 0.94 } : {}}
+                    onClick={handleSonar}
+                    onTouchStart={(e) => {
+                      if (!myPlayer.isDead && !isStunned) {
+                        e.preventDefault();
+                        handleSonar();
+                      }
+                    }}
+                    disabled={myPlayer.isDead || isStunned}
+                    className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
+                      isStunned 
+                        ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
+                        : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white border-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.7)] active:scale-95'
+                    }`}
+                    title={`生体ソナー発射！ 残り${sonarCharges}発 (ショートカットキー: F)`}
+                  >
+                    <div className="relative flex items-center justify-center flex-shrink-0">
+                      <Radar size={17} className="text-emerald-200 animate-spin-slow" />
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-300 rounded-full animate-ping"></span>
+                    </div>
+                    <div className="flex flex-col items-start leading-none">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] font-black">ソナー</span>
+                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-400/60 px-1 py-0.2 rounded text-[9px] font-black">
+                          {sonarCharges}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-emerald-200/75 mt-0.5">[F]</span>
+                    </div>
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* TOP-RIGHT SLOT: SHIELD */}
+            <div className="w-[84px] h-[48px] sm:w-[96px] sm:h-[52px] flex items-center justify-center">
+              {shieldDuration > 0 && (
+                <motion.button
+                  whileHover={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 1.06 } : {}}
+                  whileTap={(!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) ? { scale: 0.94 } : {}}
+                  onClick={handleShield}
+                  onTouchStart={(e) => {
+                    if (!isShieldOnCooldown && !isShieldActive && !isStunned && !myPlayer.isDead) {
+                      e.preventDefault();
+                      handleShield();
+                    }
+                  }}
+                  disabled={isShieldOnCooldown || isShieldActive || isStunned || myPlayer.isDead}
+                  className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
+                    isShieldActive
+                      ? 'bg-gradient-to-r from-cyan-500 via-sky-400 to-cyan-500 text-slate-950 border-white shadow-[0_0_22px_rgba(56,189,248,1)] animate-pulse'
+                      : isShieldOnCooldown
+                        ? 'bg-slate-900/90 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                        : isStunned || myPlayer.isDead
+                          ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500'
+                          : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border-cyan-300 shadow-[0_0_16px_rgba(14,165,233,0.7)] active:scale-95'
+                  }`}
+                  title={isShieldActive ? `無敵中 (${shieldActiveSec}秒)` : isShieldOnCooldown ? `クールタイム中 (${shieldCooldownSec}秒)` : 'シールド展開！ (ショートカットキー: E)'}
+                >
+                  <Shield size={17} className={isShieldActive ? 'text-slate-950 animate-bounce' : 'text-cyan-200 flex-shrink-0'} />
+                  <div className="flex flex-col items-start leading-none">
+                    <span className="text-[11px] font-black">
+                      {isShieldActive ? `${shieldActiveSec}s` : isShieldOnCooldown ? `${shieldCooldownSec}s` : 'シールド'}
+                    </span>
+                    <span className="text-[9px] text-cyan-200/75 mt-0.5">[E]</span>
+                  </div>
+                </motion.button>
+              )}
+            </div>
+
+            {/* BOTTOM-LEFT SLOT: DASH (Sprint - Tap/Hold) */}
+            <div className="w-[84px] h-[58px] sm:w-[96px] sm:h-[62px] flex items-center justify-center">
+              <motion.button
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                onMouseDown={() => window.dispatchEvent(new Event('action_sprint_start'))}
+                onMouseUp={() => window.dispatchEvent(new Event('action_sprint_end'))}
+                onMouseLeave={() => window.dispatchEvent(new Event('action_sprint_end'))}
+                onTouchStart={(e) => {
                   e.preventDefault();
-                  handleShield();
-                }
-              }}
-              disabled={isShieldOnCooldown || isShieldActive || isStunned || myPlayer.isDead}
-              className={`h-12 px-3.5 rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all text-xs font-black select-none touch-none ${
-                isShieldActive
-                  ? 'bg-gradient-to-r from-cyan-500 via-sky-400 to-cyan-500 text-slate-950 border-white shadow-[0_0_25px_rgba(56,189,248,1)] animate-pulse'
-                  : isShieldOnCooldown
-                    ? 'bg-slate-900/90 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
-                    : isStunned || myPlayer.isDead
-                      ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500'
-                      : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border-cyan-300 shadow-[0_0_18px_rgba(14,165,233,0.7)] active:scale-90'
-              }`}
-              title={isShieldActive ? `無敵中 (${shieldActiveSec}秒)` : isShieldOnCooldown ? `クールタイム中 (${shieldCooldownSec}秒)` : 'シールド展開！ (ショートカットキー: E)'}
-            >
-              <Shield size={18} className={isShieldActive ? 'text-slate-950 animate-bounce' : 'text-cyan-200'} />
-              <span className="tracking-wider text-xs">
-                {isShieldActive ? `無敵! ${shieldActiveSec}s` : isShieldOnCooldown ? `待機 ${shieldCooldownSec}s` : 'シールド [E]'}
-              </span>
-            </motion.button>
-          )}
-
-          {/* Biometric Sonar Pulse Button - ONLY VISIBLE WHEN CHARGES > 0 AND PLAYER IS ALIVE */}
-          <AnimatePresence>
-            {sonarCharges > 0 && !myPlayer.isDead && (
-              <motion.button
-                key="sonar-pulse-btn"
-                initial={{ scale: 0, opacity: 0, x: 20 }}
-                animate={{ scale: 1, opacity: 1, x: 0 }}
-                exit={{ scale: 0, opacity: 0, x: 20 }}
-                transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-                whileHover={!isStunned ? { scale: 1.08 } : {}}
-                whileTap={!isStunned ? { scale: 0.92 } : {}}
-                onClick={handleSonar}
-                onTouchStart={(e) => {
-                  if (!myPlayer.isDead && !isStunned) {
-                    e.preventDefault();
-                    handleSonar();
-                  }
+                  window.dispatchEvent(new Event('action_sprint_start'));
                 }}
-                disabled={myPlayer.isDead || isStunned}
-                className={`h-12 px-3.5 rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all text-xs font-black select-none touch-none ${
-                  isStunned 
-                    ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
-                    : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white border-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.8)] active:scale-90'
-                }`}
-                title={`生体ソナー発射！ 残り${sonarCharges}発 (ショートカットキー: F)`}
-              >
-                <div className="relative flex items-center justify-center">
-                  <Radar size={19} className="text-emerald-200 animate-spin-slow" />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-300 rounded-full animate-ping"></span>
-                </div>
-                <span className="tracking-wider text-xs flex items-center gap-1">
-                  <span>ソナー</span>
-                  <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-400/60 px-1.5 py-0.5 rounded-full text-[10px] font-black">
-                    {sonarCharges}発
-                  </span>
-                  <span className="text-[10px] text-emerald-200/80">[F]</span>
-                </span>
-              </motion.button>
-            )}
-          </AnimatePresence>
-
-          {/* KILL Button */}
-          {(() => {
-            const isStunned = (localStunUntil > Date.now()) || ((myPlayer.stunUntil || 0) > Date.now());
-            return (
-              <motion.button
-                whileHover={!isStunned ? { scale: 1.08 } : {}}
-                whileTap={!isStunned ? { scale: 0.92 } : {}}
-                onClick={handleKill}
-                onTouchStart={(e) => {
-                  if (!myPlayer.isDead && !isStunned) {
-                    e.preventDefault();
-                    handleKill();
-                  }
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  window.dispatchEvent(new Event('action_sprint_end'));
                 }}
-                disabled={myPlayer.isDead || isStunned}
-                className={`bg-gradient-to-r from-red-600 via-rose-600 to-red-700 ${
-                  isStunned 
-                    ? 'opacity-40 cursor-not-allowed border-slate-700' 
-                    : 'hover:from-red-500 hover:to-rose-500 border-red-300 shadow-[0_0_22px_rgba(225,29,72,0.9)] active:scale-90'
-                } text-white px-5 h-12 rounded-2xl transition-all border-2 flex items-center justify-center gap-2`}
-                title="ターゲットを暗殺する (ショートカットキー: Q)"
+                onTouchCancel={(e) => {
+                  e.preventDefault();
+                  window.dispatchEvent(new Event('action_sprint_end'));
+                }}
+                className="w-full h-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-2xl transition-all border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.7)] active:scale-95 flex items-center justify-center gap-1.5 font-black select-none touch-none"
+                title="高速移動スプリント (長押し / Shiftキー)"
               >
-                <div className="relative flex items-center justify-center">
-                  <Target size={24} className="text-white animate-spin-slow" />
-                  <Skull size={14} className="absolute text-yellow-300 animate-pulse" />
+                <Zap size={20} className="text-yellow-300 animate-pulse flex-shrink-0" />
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-[12px] font-black tracking-wide">ダッシュ</span>
+                  <span className="text-[9px] text-cyan-200/80 mt-1">[SHIFT]</span>
                 </div>
-                <span className="text-sm font-black tracking-widest drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">KILL [Q]</span>
               </motion.button>
-            );
-          })()}
+            </div>
+
+            {/* BOTTOM-RIGHT SLOT: KILL (Primary Action, Largest, Right Thumb Anchor) */}
+            <div className="w-[84px] h-[58px] sm:w-[96px] sm:h-[62px] flex items-center justify-center">
+              {(() => {
+                const isStunned = (localStunUntil > Date.now()) || ((myPlayer.stunUntil || 0) > Date.now());
+                return (
+                  <motion.button
+                    whileHover={!isStunned ? { scale: 1.06 } : {}}
+                    whileTap={!isStunned ? { scale: 0.94 } : {}}
+                    onClick={handleKill}
+                    onTouchStart={(e) => {
+                      if (!myPlayer.isDead && !isStunned) {
+                        e.preventDefault();
+                        handleKill();
+                      }
+                    }}
+                    disabled={myPlayer.isDead || isStunned}
+                    className={`w-full h-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 ${
+                      isStunned 
+                        ? 'opacity-40 cursor-not-allowed border-slate-700' 
+                        : 'hover:from-red-500 hover:to-rose-500 border-red-300 shadow-[0_0_24px_rgba(225,29,72,0.95)] active:scale-95'
+                    } text-white rounded-2xl transition-all border-2 flex items-center justify-center gap-1.5 select-none touch-none`}
+                    title="ターゲットを暗殺する (ショートカットキー: Q)"
+                  >
+                    <div className="relative flex items-center justify-center flex-shrink-0">
+                      <Target size={22} className="text-white animate-spin-slow" />
+                      <Skull size={13} className="absolute text-yellow-300 animate-pulse" />
+                    </div>
+                    <div className="flex flex-col items-start leading-none">
+                      <span className="text-[14px] font-black tracking-widest drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">KILL</span>
+                      <span className="text-[9px] text-red-200/80 mt-1 font-bold">[Q]</span>
+                    </div>
+                  </motion.button>
+                );
+              })()}
+            </div>
+
+          </div>
         </div>
       )}
 
