@@ -409,20 +409,15 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       </AnimatePresence>
 
       {/* ACTIVE INVISIBILITY HUD INDICATOR */}
-      <AnimatePresence>
-        {isInvisible && !myPlayer.isDead && (
-          <motion.div 
-            key="active-invis-indicator"
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            className="fixed top-12 left-1/2 -translate-x-1/2 z-40 bg-purple-950/90 backdrop-blur-md border-2 border-purple-400 text-purple-200 px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.7)] text-xs font-black flex items-center gap-2 pointer-events-none"
-          >
-            <EyeOff size={16} className="text-purple-300 animate-pulse" />
-            <span>🕶️ 光学迷彩・透明中 ({invisRemainingSec}秒)</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isInvisible && !myPlayer.isDead && (
+        <div 
+          key="active-invis-indicator"
+          className="fixed top-12 left-1/2 -translate-x-1/2 z-40 bg-purple-950/90 backdrop-blur-md border-2 border-purple-400 text-purple-200 px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.7)] text-xs font-black flex items-center gap-2 pointer-events-none transition-all duration-200"
+        >
+          <EyeOff size={16} className="text-purple-300 animate-pulse" />
+          <span>🕶️ 光学迷彩・透明中 ({invisRemainingSec}秒)</span>
+        </div>
+      )}
 
       {/* 2×2 GAMEPAD ACTION CLUSTER (OPTIMIZED FOR LANDSCAPE SMARTPHONES & KEYBOARD) */}
       {!activeTask && (
@@ -457,106 +452,11 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
 
             {/* TOP-LEFT SLOT: ACTIVE ITEM (SONAR / INVISIBILITY) - DEDICATED FIXED SLOT SO OTHER BUTTONS NEVER SHIFT */}
             <div className="w-[84px] h-[48px] sm:w-[96px] sm:h-[52px] flex items-center justify-center">
-              <AnimatePresence mode="wait">
-                {/* Dual items: if holding BOTH Sonar and Invisibility */}
-                {sonarCharges > 0 && invisibilityCharges > 0 && !myPlayer.isDead && (
-                  <motion.div 
-                    key="dual-item-container" 
-                    initial={{ scale: 0.7, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.7, opacity: 0 }}
-                    className="grid grid-cols-2 gap-1 w-full h-full"
-                  >
-                    <motion.button
-                      key="sonar-mini-btn"
-                      initial={{ scale: 0.7, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.7, opacity: 0 }}
-                      onClick={handleSonar}
-                      onTouchStart={(e) => {
-                        if (!myPlayer.isDead && !isStunned) {
-                          e.preventDefault();
-                          handleSonar();
-                        }
-                      }}
-                      disabled={myPlayer.isDead || isStunned}
-                      className="w-full h-full rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex flex-col items-center justify-center select-none touch-none shadow-md active:scale-95"
-                      title={`ソナー (${sonarCharges}発) [F]`}
-                    >
-                      <Radar size={13} className="text-emerald-200 animate-spin-slow" />
-                      <span className="text-[9px] font-black leading-none mt-0.5">ソナー</span>
-                      <span className="text-[7px] text-emerald-200/80">[F]</span>
-                    </motion.button>
-
-                    <motion.button
-                      key="invis-mini-btn"
-                      initial={{ scale: 0.7, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.7, opacity: 0 }}
-                      onClick={handleInvisibility}
-                      onTouchStart={(e) => {
-                        if (!myPlayer.isDead && !isStunned) {
-                          e.preventDefault();
-                          handleInvisibility();
-                        }
-                      }}
-                      disabled={myPlayer.isDead || isStunned}
-                      className="w-full h-full rounded-xl border border-purple-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex flex-col items-center justify-center select-none touch-none shadow-md shadow-purple-900/50 active:scale-95"
-                      title="光学迷彩・透明化発動！ [C]"
-                    >
-                      <EyeOff size={13} className="text-purple-200 animate-pulse" />
-                      <span className="text-[9px] font-black leading-none mt-0.5">透明化</span>
-                      <span className="text-[7px] text-purple-200/80">[C]</span>
-                    </motion.button>
-                  </motion.div>
-                )}
-
-                {/* Only Invisibility */}
-                {invisibilityCharges > 0 && sonarCharges <= 0 && !myPlayer.isDead && (
-                  <motion.button
-                    key="invis-pulse-btn"
-                    initial={{ scale: 0.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.6, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-                    whileHover={!isStunned ? { scale: 1.06 } : {}}
-                    whileTap={!isStunned ? { scale: 0.94 } : {}}
-                    onClick={handleInvisibility}
-                    onTouchStart={(e) => {
-                      if (!myPlayer.isDead && !isStunned) {
-                        e.preventDefault();
-                        handleInvisibility();
-                      }
-                    }}
-                    disabled={myPlayer.isDead || isStunned}
-                    className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
-                      isStunned 
-                        ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
-                        : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-700 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-300 shadow-[0_0_18px_rgba(168,85,247,0.75)] active:scale-95'
-                    }`}
-                    title="光学迷彩発動！ 透明人間化 (ショートカットキー: C)"
-                  >
-                    <div className="relative flex items-center justify-center flex-shrink-0">
-                      <EyeOff size={17} className="text-purple-200 animate-pulse" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-300 rounded-full animate-ping"></span>
-                    </div>
-                    <div className="flex flex-col items-start leading-none">
-                      <span className="text-[11px] font-black">透明化</span>
-                      <span className="text-[9px] text-purple-200/80 mt-0.5">[C]</span>
-                    </div>
-                  </motion.button>
-                )}
-
-                {/* Only Sonar */}
-                {sonarCharges > 0 && invisibilityCharges <= 0 && !myPlayer.isDead && (
-                  <motion.button
-                    key="sonar-pulse-btn"
-                    initial={{ scale: 0.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.6, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
-                    whileHover={!isStunned ? { scale: 1.06 } : {}}
-                    whileTap={!isStunned ? { scale: 0.94 } : {}}
+              {/* Dual items: if holding BOTH Sonar and Invisibility */}
+              {sonarCharges > 0 && invisibilityCharges > 0 && !myPlayer.isDead ? (
+                <div key="dual-item-container" className="grid grid-cols-2 gap-1 w-full h-full">
+                  <button
+                    key="sonar-mini-btn"
                     onClick={handleSonar}
                     onTouchStart={(e) => {
                       if (!myPlayer.isDead && !isStunned) {
@@ -565,29 +465,92 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
                       }
                     }}
                     disabled={myPlayer.isDead || isStunned}
-                    className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
-                      isStunned 
-                        ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
-                        : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white border-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.7)] active:scale-95'
-                    }`}
-                    title={`生体ソナー発射！ 残り${sonarCharges}発 (ショートカットキー: F)`}
+                    className="w-full h-full rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex flex-col items-center justify-center select-none touch-none shadow-md active:scale-95 transition-transform"
+                    title={`ソナー (${sonarCharges}発) [F]`}
                   >
-                    <div className="relative flex items-center justify-center flex-shrink-0">
-                      <Radar size={17} className="text-emerald-200 animate-spin-slow" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-300 rounded-full animate-ping"></span>
+                    <Radar size={13} className="text-emerald-200 animate-spin-slow" />
+                    <span className="text-[9px] font-black leading-none mt-0.5">ソナー</span>
+                    <span className="text-[7px] text-emerald-200/80">[F]</span>
+                  </button>
+
+                  <button
+                    key="invis-mini-btn"
+                    onClick={handleInvisibility}
+                    onTouchStart={(e) => {
+                      if (!myPlayer.isDead && !isStunned) {
+                        e.preventDefault();
+                        handleInvisibility();
+                      }
+                    }}
+                    disabled={myPlayer.isDead || isStunned}
+                    className="w-full h-full rounded-xl border border-purple-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex flex-col items-center justify-center select-none touch-none shadow-md shadow-purple-900/50 active:scale-95 transition-transform"
+                    title="光学迷彩・透明化発動！ [C]"
+                  >
+                    <EyeOff size={13} className="text-purple-200 animate-pulse" />
+                    <span className="text-[9px] font-black leading-none mt-0.5">透明化</span>
+                    <span className="text-[7px] text-purple-200/80">[C]</span>
+                  </button>
+                </div>
+              ) : invisibilityCharges > 0 && !myPlayer.isDead ? (
+                <button
+                  key="invis-pulse-btn"
+                  onClick={handleInvisibility}
+                  onTouchStart={(e) => {
+                    if (!myPlayer.isDead && !isStunned) {
+                      e.preventDefault();
+                      handleInvisibility();
+                    }
+                  }}
+                  disabled={myPlayer.isDead || isStunned}
+                  className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
+                    isStunned 
+                      ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
+                      : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-700 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-300 shadow-[0_0_18px_rgba(168,85,247,0.75)] active:scale-95'
+                  }`}
+                  title="光学迷彩発動！ 透明人間化 (ショートカットキー: C)"
+                >
+                  <div className="relative flex items-center justify-center flex-shrink-0">
+                    <EyeOff size={17} className="text-purple-200 animate-pulse" />
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-300 rounded-full animate-ping"></span>
+                  </div>
+                  <div className="flex flex-col items-start leading-none">
+                    <span className="text-[11px] font-black">透明化</span>
+                    <span className="text-[9px] text-purple-200/80 mt-0.5">[C]</span>
+                  </div>
+                </button>
+              ) : sonarCharges > 0 && !myPlayer.isDead ? (
+                <button
+                  key="sonar-pulse-btn"
+                  onClick={handleSonar}
+                  onTouchStart={(e) => {
+                    if (!myPlayer.isDead && !isStunned) {
+                      e.preventDefault();
+                      handleSonar();
+                    }
+                  }}
+                  disabled={myPlayer.isDead || isStunned}
+                  className={`w-full h-full rounded-2xl border-2 flex items-center justify-center gap-1.5 transition-all font-black select-none touch-none ${
+                    isStunned 
+                      ? 'opacity-40 cursor-not-allowed border-slate-700 bg-slate-900 text-slate-500' 
+                      : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white border-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.7)] active:scale-95'
+                  }`}
+                  title={`生体ソナー発射！ 残り${sonarCharges}発 (ショートカットキー: F)`}
+                >
+                  <div className="relative flex items-center justify-center flex-shrink-0">
+                    <Radar size={17} className="text-emerald-200 animate-spin-slow" />
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-300 rounded-full animate-ping"></span>
+                  </div>
+                  <div className="flex flex-col items-start leading-none">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-black">ソナー</span>
+                      <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-400/60 px-1 py-0.2 rounded text-[9px] font-black">
+                        {sonarCharges}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-start leading-none">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-black">ソナー</span>
-                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-400/60 px-1 py-0.2 rounded text-[9px] font-black">
-                          {sonarCharges}
-                        </span>
-                      </div>
-                      <span className="text-[9px] text-emerald-200/75 mt-0.5">[F]</span>
-                    </div>
-                  </motion.button>
-                )}
-              </AnimatePresence>
+                    <span className="text-[9px] text-emerald-200/75 mt-0.5">[F]</span>
+                  </div>
+                </button>
+              ) : null}
             </div>
 
             {/* TOP-RIGHT SLOT: SHIELD */}

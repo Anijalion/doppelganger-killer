@@ -689,15 +689,18 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         const pulseInvis = Math.sin(Date.now() * 0.015) * 3;
         const camoRadius = 36 + pulseInvis;
 
-        // Rotating dashed cyber ring
+        // Rotating dashed cyber ring (Using ctx.rotate instead of unbounded lineDashOffset to prevent CoreGraphics hang)
+        ctx.save();
+        ctx.rotate((Date.now() * 0.003) % (Math.PI * 2));
         ctx.strokeStyle = '#c084fc';
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 6]);
-        ctx.lineDashOffset = Date.now() * 0.02;
+        ctx.lineDashOffset = 0;
         ctx.beginPath();
         ctx.arc(0, 0, camoRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.restore();
 
         // Faint purple cloaking glow
         ctx.fillStyle = 'rgba(168, 85, 247, 0.12)';
@@ -729,17 +732,18 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         const pulse = Math.sin(Date.now() * 0.015) * 4;
         const shieldRadius = 38 + pulse;
 
-        // Rotating dashed energy barrier ring
+        // Rotating dashed energy barrier ring (Using ctx.rotate instead of unbounded lineDashOffset)
+        ctx.save();
+        ctx.rotate((-Date.now() * 0.003) % (Math.PI * 2));
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 3;
-        ctx.shadowColor = '#0284c7';
-        ctx.shadowBlur = 16;
         ctx.setLineDash([10, 5]);
-        ctx.lineDashOffset = -Date.now() * 0.02;
+        ctx.lineDashOffset = 0;
         ctx.beginPath();
         ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.restore();
 
         // Radial gradient barrier glow
         const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, shieldRadius);
