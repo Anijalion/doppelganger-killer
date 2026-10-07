@@ -282,6 +282,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       <AnimatePresence>
         {isCrownPeriod && gameState.state === 'playing' && (
           <motion.div 
+            key="crown-banner"
             initial={{ scale: 0.5, y: -20, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.5, opacity: 0 }}
@@ -302,6 +303,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       <AnimatePresence>
         {isGasActive && (
           <motion.div 
+            key="gas-banner"
             initial={{ scale: 0.7, y: -20, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.7, opacity: 0 }}
@@ -394,6 +396,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       <AnimatePresence>
         {showPwaHint && (
           <motion.div 
+            key="pwa-hint-toast"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -409,6 +412,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
       <AnimatePresence>
         {isInvisible && !myPlayer.isDead && (
           <motion.div 
+            key="active-invis-indicator"
             initial={{ opacity: 0, y: -20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
@@ -453,10 +457,16 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
 
             {/* TOP-LEFT SLOT: ACTIVE ITEM (SONAR / INVISIBILITY) - DEDICATED FIXED SLOT SO OTHER BUTTONS NEVER SHIFT */}
             <div className="w-[84px] h-[48px] sm:w-[96px] sm:h-[52px] flex items-center justify-center">
-              <AnimatePresence>
+              <AnimatePresence mode="wait">
                 {/* Dual items: if holding BOTH Sonar and Invisibility */}
                 {sonarCharges > 0 && invisibilityCharges > 0 && !myPlayer.isDead && (
-                  <div key="dual-item-container" className="grid grid-cols-2 gap-1 w-full h-full">
+                  <motion.div 
+                    key="dual-item-container" 
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.7, opacity: 0 }}
+                    className="grid grid-cols-2 gap-1 w-full h-full"
+                  >
                     <motion.button
                       key="sonar-mini-btn"
                       initial={{ scale: 0.7, opacity: 0 }}
@@ -498,7 +508,7 @@ export default function HUD({ gameState, socket, roomId, nearTaskStation, nearVe
                       <span className="text-[9px] font-black leading-none mt-0.5">透明化</span>
                       <span className="text-[7px] text-purple-200/80">[C]</span>
                     </motion.button>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Only Invisibility */}

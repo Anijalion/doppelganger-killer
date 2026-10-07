@@ -566,6 +566,11 @@ io.on('connection', (socket) => {
     } else if (targetId && room.players[targetId] && !room.players[targetId].isDead) {
       const victim = room.players[targetId];
 
+      // Victim is cloaked in optical camouflage (invisible)! Kill rejected
+      if (victim.invisibleUntil && victim.invisibleUntil > Date.now()) {
+        return;
+      }
+
       // Check if victim has an active invincibility shield
       if (victim.shieldUntil && victim.shieldUntil > Date.now()) {
         io.to(roomId).emit('kill_blocked', { killerId: socket.id, victimId: targetId, x: victim.x, y: victim.y });
@@ -691,6 +696,19 @@ io.on('connection', (socket) => {
     });
     io.to(roomId).emit('event_log', `🕶️ ${player.name} が光学迷彩を発動！ (${durSec}秒間透明化)`);
     io.to(roomId).emit('player_updated', room.players);
+
+    // Auto-decloak synchronization timer
+    setTimeout(() => {
+      const currentRoom = rooms[roomId];
+      if (currentRoom && currentRoom.state === 'playing' && currentRoom.players[socket.id]) {
+        const p = currentRoom.players[socket.id];
+        if (p.invisibleUntil && p.invisibleUntil <= Date.now() + 250) {
+          p.invisibleUntil = 0;
+          io.to(roomId).emit('player_decloaked', { playerId: socket.id });
+          io.to(roomId).emit('player_updated', currentRoom.players);
+        }
+      }
+    }, durSec * 1000);
   });
 
   socket.on('action_task_completed', ({ roomId, taskId }) => {

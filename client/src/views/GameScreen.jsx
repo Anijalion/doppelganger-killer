@@ -23,6 +23,7 @@ import { socket } from '../socket';
 import { useSocketEvent } from '../hooks/useSocketEvent';
 import GameCanvas from '../components/GameCanvas';
 import HUD from '../components/HUD';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { soundManager } from '../utils/audio';
 
 const COLORS = [
@@ -782,17 +783,19 @@ export default function GameScreen() {
         onNearCrimeScene={setNearCrimeScene}
       />
 
-      <HUD 
-        gameState={gameState} 
-        socket={socket} 
-        roomId={roomId} 
-        nearTaskStation={nearTaskStation}
-        nearVent={nearVent}
-        nearCrimeScene={nearCrimeScene}
-        onUseVent={handleUseVent}
-        gameOverData={gameOverData}
-        onResetRoom={handleResetRoom}
-      />
+      <ErrorBoundary>
+        <HUD 
+          gameState={gameState} 
+          socket={socket} 
+          roomId={roomId} 
+          nearTaskStation={nearTaskStation}
+          nearVent={nearVent}
+          nearCrimeScene={nearCrimeScene}
+          onUseVent={handleUseVent}
+          gameOverData={gameOverData}
+          onResetRoom={handleResetRoom}
+        />
+      </ErrorBoundary>
 
       {/* NON-BLOCKING LANDSCAPE RECOMMENDATION TOAST */}
       {isPortrait && (

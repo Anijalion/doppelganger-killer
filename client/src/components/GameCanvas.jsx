@@ -282,17 +282,22 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
   });
 
   useSocketEvent('player_invisible', (data) => {
+    if (!data || !data.playerId) return;
     const currentState = gameStateRef.current;
-    if (currentState && currentState.players[data.playerId]) {
+    if (currentState && currentState.players && currentState.players[data.playerId]) {
       currentState.players[data.playerId].invisibleUntil = data.invisibleUntil;
     }
     if (data.playerId === myId) {
-      soundManager.playInvisActivate();
+      try {
+        soundManager.playInvisActivate();
+      } catch (e) {
+        console.warn('Audio playInvisActivate error:', e);
+      }
     }
-    const p = currentState?.players[data.playerId];
-    if (p) {
+    const p = currentState?.players?.[data.playerId];
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') {
       floatingTextsRef.current.push({
-        text: `🕶️ 光学迷彩発動 (${data.durationSec}秒)`,
+        text: `🕶️ 光学迷彩発動 (${data.durationSec || 5}秒)`,
         x: p.x,
         y: p.y - 45,
         color: '#c084fc',
@@ -616,6 +621,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
       Object.values(state.players).forEach(p => {
         if (p.id !== myId && !p.isDead) {
+          const isTargetInvis = (p.invisibleUntil || 0) > Date.now();
+          if (isTargetInvis) return; // Cannot assassinate invisible players!
           const dist = Math.sqrt((p.x - me.x) ** 2 + (p.y - me.y) ** 2);
           if (dist < minDistance) {
             minDistance = dist;
@@ -985,8 +992,9 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     };
 
     const render = () => {
-      const state = gameStateRef.current;
-      if (!state) return;
+      try {
+        const state = gameStateRef.current;
+        if (!state) return;
 
       const me = state.players[myId];
       const completedTasks = me?.completedTasks || [];
@@ -2011,11 +2019,14 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
         ctx.restore();
       }
-
+    } catch (err) {
+      console.error('GameCanvas render loop error:', err);
+    } finally {
       animationId = requestAnimationFrame(render);
-    };
+    }
+  };
 
-    render();
+  render();
 
     return () => {
       window.removeEventListener('resize', resize);

@@ -407,8 +407,9 @@ class SoundEngine {
   }
 
   playInvisPickup() {
-    if (this.muted || !this.ctx) return;
+    if (this.muted) return;
     this.init();
+    if (!this.ctx) return;
     try {
       this.playTone(550, 'sine', 0.2, 0.1, 0.01);
       setTimeout(() => this.playTone(880, 'triangle', 0.25, 0.15, 0.01), 60);
@@ -417,8 +418,9 @@ class SoundEngine {
   }
 
   playInvisActivate() {
-    if (this.muted || !this.ctx) return;
+    if (this.muted) return;
     this.init();
+    if (!this.ctx) return;
     try {
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
