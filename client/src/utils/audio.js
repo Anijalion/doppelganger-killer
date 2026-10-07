@@ -405,6 +405,41 @@ class SoundEngine {
       setTimeout(() => this.playTone(990, 'sine', 0.35, 0.2, 0.01), 120);
     } catch (e) {}
   }
+
+  playInvisPickup() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      this.playTone(550, 'sine', 0.2, 0.1, 0.01);
+      setTimeout(() => this.playTone(880, 'triangle', 0.25, 0.15, 0.01), 60);
+      setTimeout(() => this.playTone(1320, 'sine', 0.35, 0.2, 0.01), 120);
+    } catch (e) {}
+  }
+
+  playInvisActivate() {
+    if (this.muted || !this.ctx) return;
+    this.init();
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(950, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.45);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.5);
+      setTimeout(() => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (e) {}
+      }, 600);
+    } catch (e) {}
+  }
 }
 
 export const soundManager = new SoundEngine();

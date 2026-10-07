@@ -274,6 +274,40 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     }
   });
 
+  useSocketEvent('invis_item_spawned', (invisibilityItem) => {
+    const currentState = gameStateRef.current;
+    if (currentState) {
+      currentState.invisibilityItem = invisibilityItem;
+    }
+  });
+
+  useSocketEvent('player_invisible', (data) => {
+    const currentState = gameStateRef.current;
+    if (currentState && currentState.players[data.playerId]) {
+      currentState.players[data.playerId].invisibleUntil = data.invisibleUntil;
+    }
+    if (data.playerId === myId) {
+      soundManager.playInvisActivate();
+    }
+    const p = currentState?.players[data.playerId];
+    if (p) {
+      floatingTextsRef.current.push({
+        text: `🕶️ 光学迷彩発動 (${data.durationSec}秒)`,
+        x: p.x,
+        y: p.y - 45,
+        color: '#c084fc',
+        life: 70
+      });
+    }
+  });
+
+  useSocketEvent('player_decloaked', (data) => {
+    const currentState = gameStateRef.current;
+    if (currentState && currentState.players[data.playerId]) {
+      currentState.players[data.playerId].invisibleUntil = 0;
+    }
+  });
+
   useSocketEvent('sonar_ping', (data) => {
     soundManager.playSonarPing();
 
@@ -632,7 +666,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
     let isLastMinute = false;
 
     // FIX FOR DRIFTING LEGS: Math.sin(animStep) * 6 BOUNDS LEG STEP TO [-6, +6] PIXELS STRICTLY!
-    const drawCharacter = (x, y, color, hat, facingLeft, isMoving, animStep, isStealth, crown, isMe, playerName, isTargetLocked, isGhost, isStunned, isShielded) => {
+    const drawCharacter = (x, y, color, hat, facingLeft, isMoving, animStep, isStealth, crown, isMe, playerName, isTargetLocked, isGhost, isStunned, isShielded, isInvis) => {
       ctx.save();
 
       const breathWobble = Math.sin(Date.now() * 0.005) * 1.5;
@@ -640,6 +674,47 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
 
       if (facingLeft) ctx.scale(-1, 1);
       if (isGhost) ctx.globalAlpha = 0.45;
+      if (isInvis) ctx.globalAlpha = 0.35;
+
+      // OPTICAL CAMOUFLAGE / CLOAKING AURA & SHIMMER (When invisible)
+      if (isInvis) {
+        ctx.save();
+        const pulseInvis = Math.sin(Date.now() * 0.015) * 3;
+        const camoRadius = 36 + pulseInvis;
+
+        // Rotating dashed cyber ring
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.lineDashOffset = Date.now() * 0.02;
+        ctx.beginPath();
+        ctx.arc(0, 0, camoRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Faint purple cloaking glow
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.12)';
+        ctx.beginPath();
+        ctx.arc(0, 0, camoRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Floating Cloak Badge above head
+        ctx.fillStyle = '#581c87';
+        ctx.beginPath();
+        ctx.arc(0, -44, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🕶️', 0, -43);
+
+        ctx.restore();
+      }
 
       // SHIELD INVINCIBILITY BARRIER AURA & ORBITING PARTICLES
       if (isShielded) {
@@ -1084,6 +1159,22 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
           }
         }
 
+        if (state.invisibilityItem && state.invisibilityItem.active && !me.isDead) {
+          const distInvis = Math.hypot(state.invisibilityItem.x - me.x, state.invisibilityItem.y - me.y);
+          if (distInvis < 55) {
+            state.invisibilityItem.active = false; // Instant removal on contact!
+            soundManager.playInvisPickup();
+            socket.emit('action_pickup_invisibility', { roomId });
+            floatingTextsRef.current.push({
+              text: '🕶️ 光学迷彩デバイス獲得！ [ボタン解禁]',
+              x: me.x,
+              y: me.y - 45,
+              color: '#c084fc',
+              life: 80
+            });
+          }
+        }
+
         // Toxic Gas Damage Check
         if (isGasActive && !me.isDead) {
           const distToCenter = Math.hypot(me.x - 1200, me.y - 1200);
@@ -1296,6 +1387,59 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         ctx.restore();
       }
 
+      // Optical Camouflage / Invisibility Item Terminal
+      if (state.invisibilityItem && state.invisibilityItem.active) {
+        const item = state.invisibilityItem;
+        ctx.save();
+        const pulse = Math.sin(Date.now() * 0.008) * 4;
+        const beaconRadius = 22 + pulse;
+
+        // Outer glow ripple
+        const rippleR = 26 + ((Date.now() * 0.03) % 20);
+        const rippleAlpha = Math.max(0, 1 - ((rippleR - 26) / 20));
+        ctx.strokeStyle = `rgba(168, 85, 247, ${rippleAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, rippleR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Terminal Base Circle
+        const grad = ctx.createRadialGradient(item.x, item.y, 4, item.x, item.y, beaconRadius);
+        grad.addColorStop(0, '#c084fc');
+        grad.addColorStop(0.6, '#7c3aed');
+        grad.addColorStop(1, '#3b0764');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, beaconRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#d8b4fe';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Icon / Emoji inside beacon
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🕶️', item.x, item.y);
+
+        // Terminal Label Badge
+        ctx.fillStyle = '#3b0764';
+        ctx.fillRect(item.x - 48, item.y + 26, 96, 18);
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(item.x - 48, item.y + 26, 96, 18);
+
+        ctx.fillStyle = '#e9d5ff';
+        ctx.font = 'black 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('光学迷彩端末', item.x, item.y + 35);
+
+        ctx.restore();
+      }
+
       // Toxic Gas Safe Zone Ring & Outer Boundary Fog Overlay (Rendered ON TOP of all room floors so it is 100% visible everywhere!)
       if (isGasActive) {
         ctx.save();
@@ -1473,6 +1617,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         let minDist = KILL_RADIUS;
         Object.values(state.players).forEach(p => {
           if (p.id !== myId && !p.isDead) {
+            const isTargetInvis = (p.invisibleUntil || 0) > Date.now();
+            if (isTargetInvis) return; // Cannot lock-on to invisible opponents!
             const dist = Math.sqrt((p.x - me.x) ** 2 + (p.y - me.y) ** 2);
             if (dist < minDist) {
               minDist = dist;
@@ -1570,7 +1716,7 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         const npcColor = npc.isGolden ? '#fbbf24' : '#94a3b8';
         const isLocked = lockedTargetId === npc.id;
 
-        drawCharacter(npc.x, npc.y, npcColor, 'none', npc.facingLeft, isNpcMoving, npc.animStep, false, false, false, '', isLocked, false, false, false);
+        drawCharacter(npc.x, npc.y, npcColor, 'none', npc.facingLeft, isNpcMoving, npc.animStep, false, false, false, '', isLocked, false, false, false, false);
       });
 
       // Draw Players (Including Ghosts)
@@ -1578,6 +1724,12 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
         if (p.isDead && !p.isGhost) return;
 
         const isMe = p.id === myId;
+        const isInvis = (p.invisibleUntil || 0) > Date.now();
+        if (!isMe && isInvis) {
+          // Completely invisible to opponents!
+          return;
+        }
+
         const color = (p.isGoldenPaint) ? '#fbbf24' : (isMe ? (p.color || '#f87171') : '#94a3b8');
         // SHOW CROWN FOR EVERYONE INCLUDING THE #1 PLAYER THEMSELVES WHEN IN LAST MINUTE
         const showCrown = isLastMinute && p.id === leaderId;
@@ -1598,7 +1750,8 @@ export default function GameCanvas({ gameState, socket, roomId, onNearTaskStatio
           isLocked,
           p.isGhost,
           isStunned,
-          isShielded
+          isShielded,
+          isInvis
         );
       });
 

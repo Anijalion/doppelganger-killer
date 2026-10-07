@@ -144,6 +144,7 @@ io.on('connection', (socket) => {
         poisonGasStartSec: 60,
         shieldDurationSec: 3,
         shieldCooldownSec: 15,
+        invisDurationSec: 5,
         scoreSettings: {
           playerKill: 1000,
           npcMistake: 500,
@@ -155,6 +156,7 @@ io.on('connection', (socket) => {
         goldenNpcIndex: Math.floor(Math.random() * 80),
         goldenPaint: { x: 1200, y: 1200, active: true },
         sonarItem: { x: 800, y: 800, active: true },
+        invisibilityItem: { x: 1400, y: 1400, active: true },
         taskStations: TASK_STATIONS,
         vents: generateRandomVents(),
         totalTasksCompleted: 0,
@@ -185,7 +187,9 @@ io.on('connection', (socket) => {
       stunUntil: 0,
       shieldUntil: 0,
       shieldCooldownUntil: 0,
-      sonarCharges: 0
+      sonarCharges: 0,
+      invisibilityCharges: 0,
+      invisibleUntil: 0
     };
 
     socket.emit('room_joined', { roomId, gameState: room });
@@ -204,6 +208,7 @@ io.on('connection', (socket) => {
           poisonGasStartSec: room.poisonGasStartSec,
           shieldDurationSec: room.shieldDurationSec,
           shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -222,6 +227,7 @@ io.on('connection', (socket) => {
           poisonGasStartSec: room.poisonGasStartSec,
           shieldDurationSec: room.shieldDurationSec,
           shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -240,6 +246,7 @@ io.on('connection', (socket) => {
           poisonGasStartSec: room.poisonGasStartSec,
           shieldDurationSec: room.shieldDurationSec,
           shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -258,6 +265,7 @@ io.on('connection', (socket) => {
           poisonGasStartSec: room.poisonGasStartSec,
           shieldDurationSec: room.shieldDurationSec,
           shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -276,6 +284,26 @@ io.on('connection', (socket) => {
           poisonGasStartSec: room.poisonGasStartSec,
           shieldDurationSec: room.shieldDurationSec,
           shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
+          scoreSettings: room.scoreSettings
+        });
+      }
+    }
+  });
+
+  socket.on('set_invis_duration', ({ roomId, durationSec }) => {
+    const room = rooms[roomId];
+    if (room && room.state === 'waiting') {
+      const validDurations = [0, 3, 5, 8, 10];
+      if (validDurations.includes(durationSec)) {
+        room.invisDurationSec = durationSec;
+        io.to(roomId).emit('room_settings_updated', {
+          gameDuration: room.gameDuration,
+          crownDurationSec: room.crownDurationSec,
+          poisonGasStartSec: room.poisonGasStartSec,
+          shieldDurationSec: room.shieldDurationSec,
+          shieldCooldownSec: room.shieldCooldownSec,
+          invisDurationSec: room.invisDurationSec,
           scoreSettings: room.scoreSettings
         });
       }
@@ -295,6 +323,7 @@ io.on('connection', (socket) => {
         poisonGasStartSec: room.poisonGasStartSec,
         shieldDurationSec: room.shieldDurationSec,
         shieldCooldownSec: room.shieldCooldownSec,
+        invisDurationSec: room.invisDurationSec,
         scoreSettings: room.scoreSettings
       });
     }
@@ -316,7 +345,9 @@ io.on('connection', (socket) => {
 
       if (room.paintInterval) clearInterval(room.paintInterval);
       if (room.sonarInterval) clearInterval(room.sonarInterval);
+      if (room.invisInterval) clearInterval(room.invisInterval);
       room.sonarItem = null;
+      room.invisibilityItem = null;
 
       io.to(roomId).emit('game_started', { startTime: room.startTime, gameState: room });
 
@@ -332,6 +363,19 @@ io.on('connection', (socket) => {
           io.to(roomId).emit('sonar_item_spawned', room.sonarItem);
         }
       }, 10000);
+
+      // Spawn first invisibility item 15 seconds into the game (if enabled)
+      setTimeout(() => {
+        if (room && room.state === 'playing' && (room.invisDurationSec ?? 5) > 0 && (!room.invisibilityItem || !room.invisibilityItem.active)) {
+          const invisPos = getRandomWallSafePosition();
+          room.invisibilityItem = {
+            x: invisPos.x,
+            y: invisPos.y,
+            active: true
+          };
+          io.to(roomId).emit('invis_item_spawned', room.invisibilityItem);
+        }
+      }, 15000);
 
       room.paintInterval = setInterval(() => {
         if (room.state === 'playing') {
@@ -357,11 +401,24 @@ io.on('connection', (socket) => {
         }
       }, 35000);
 
+      room.invisInterval = setInterval(() => {
+        if (room.state === 'playing' && (room.invisDurationSec ?? 5) > 0) {
+          const invisPos = getRandomWallSafePosition();
+          room.invisibilityItem = {
+            x: invisPos.x,
+            y: invisPos.y,
+            active: true
+          };
+          io.to(roomId).emit('invis_item_spawned', room.invisibilityItem);
+        }
+      }, 40000);
+
       setTimeout(() => {
         if (room && room.state === 'playing') {
           room.state = 'finished';
           clearInterval(room.paintInterval);
           if (room.sonarInterval) clearInterval(room.sonarInterval);
+          if (room.invisInterval) clearInterval(room.invisInterval);
           const sorted = Object.values(room.players).sort((a, b) => b.score - a.score);
           io.to(roomId).emit('game_over', { leaderboard: sorted });
         }
@@ -463,12 +520,31 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('action_pickup_invisibility', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room && room.invisibilityItem && room.invisibilityItem.active && room.players[socket.id]) {
+      room.invisibilityItem.active = false;
+      const player = room.players[socket.id];
+      if (player.isDead) return;
+      player.invisibilityCharges = 1;
+      io.to(roomId).emit('invis_item_spawned', room.invisibilityItem);
+      io.to(roomId).emit('event_log', `🕶️ ${player.name} が光学迷彩デバイスを獲得！ (透明化ボタン解禁)`);
+      io.to(roomId).emit('player_updated', room.players);
+    }
+  });
+
   socket.on('action_kill', ({ roomId, targetId, isNpc, isGolden, x, y }) => {
     const room = rooms[roomId];
     if (!room || room.state !== 'playing') return;
 
     const player = room.players[socket.id];
     if (!player || player.isDead || player.stunUntil > Date.now()) return;
+
+    // Attacking breaks active invisibility immediately!
+    if (player.invisibleUntil && player.invisibleUntil > Date.now()) {
+      player.invisibleUntil = 0;
+      io.to(roomId).emit('player_decloaked', { playerId: socket.id });
+    }
 
     const killPts = room.scoreSettings?.playerKill ?? 1000;
     const mistakePenalty = room.scoreSettings?.npcMistake ?? 500;
@@ -514,6 +590,8 @@ io.on('connection', (socket) => {
       victim.isDead = true;
       victim.isGhost = true;
       victim.sonarCharges = 0; // Sonar charges expire on death!
+      victim.invisibilityCharges = 0; // Invisibility charges expire on death!
+      victim.invisibleUntil = 0;
 
       io.to(roomId).emit('player_killed', { killerId: socket.id, victimId: targetId, x, y, killerX: player.x, killerY: player.y });
 
@@ -594,6 +672,27 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('player_updated', room.players);
   });
 
+  socket.on('action_invisibility', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.state !== 'playing') return;
+    const player = room.players[socket.id];
+    if (!player || player.isDead || (player.stunUntil > Date.now())) return;
+    if ((player.invisibilityCharges || 0) <= 0) return;
+    const durSec = room.invisDurationSec ?? 5;
+    if (durSec === 0) return;
+
+    player.invisibilityCharges = 0;
+    player.invisibleUntil = Date.now() + (durSec * 1000);
+
+    io.to(roomId).emit('player_invisible', {
+      playerId: socket.id,
+      invisibleUntil: player.invisibleUntil,
+      durationSec: durSec
+    });
+    io.to(roomId).emit('event_log', `🕶️ ${player.name} が光学迷彩を発動！ (${durSec}秒間透明化)`);
+    io.to(roomId).emit('player_updated', room.players);
+  });
+
   socket.on('action_task_completed', ({ roomId, taskId }) => {
     const room = rooms[roomId];
     if (room && room.players[socket.id] && room.state === 'playing') {
@@ -634,7 +733,9 @@ io.on('connection', (socket) => {
       room.vents = generateRandomVents();
       if (room.sonarInterval) clearInterval(room.sonarInterval);
       if (room.paintInterval) clearInterval(room.paintInterval);
+      if (room.invisInterval) clearInterval(room.invisInterval);
       room.sonarItem = null;
+      room.invisibilityItem = null;
       Object.values(room.players).forEach(p => {
         p.score = 0;
         p.kills = 0;
@@ -648,6 +749,8 @@ io.on('connection', (socket) => {
         p.shieldUntil = 0;
         p.shieldCooldownUntil = 0;
         p.sonarCharges = 0;
+        p.invisibilityCharges = 0;
+        p.invisibleUntil = 0;
       });
       io.to(roomId).emit('room_reset', { gameState: room });
     }
@@ -661,6 +764,7 @@ io.on('connection', (socket) => {
         if (Object.keys(room.players).length === 0) {
           if (room.paintInterval) clearInterval(room.paintInterval);
           if (room.sonarInterval) clearInterval(room.sonarInterval);
+          if (room.invisInterval) clearInterval(room.invisInterval);
           delete rooms[roomId];
         }
       }

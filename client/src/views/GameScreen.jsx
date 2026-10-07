@@ -15,7 +15,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Shield,
-  Timer
+  Timer,
+  EyeOff
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { socket } from '../socket';
@@ -140,6 +141,10 @@ export default function GameScreen() {
     setGameState(prev => prev ? { ...prev, sonarItem } : prev);
   });
 
+  useSocketEvent('invis_item_spawned', (invisibilityItem) => {
+    setGameState(prev => prev ? { ...prev, invisibilityItem } : prev);
+  });
+
   useSocketEvent('room_settings_updated', (data) => {
     setGameState(prev => prev ? { 
       ...prev, 
@@ -148,6 +153,7 @@ export default function GameScreen() {
       poisonGasStartSec: data.poisonGasStartSec,
       shieldDurationSec: data.shieldDurationSec,
       shieldCooldownSec: data.shieldCooldownSec,
+      invisDurationSec: data.invisDurationSec,
       scoreSettings: data.scoreSettings
     } : prev);
   });
@@ -564,7 +570,41 @@ export default function GameScreen() {
                   </div>
                 </div>
 
-                {/* 6. Score Settings Expandable */}
+                {/* 6. Invisibility Duration */}
+                <div>
+                  <label className="text-[11px] font-bold text-purple-300 block mb-1.5 flex items-center gap-1.5">
+                    <EyeOff size={13} className="text-purple-400" />
+                    光学迷彩 (透明化の効果秒数)
+                  </label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {[
+                      { sec: 0, label: 'オフ' },
+                      { sec: 3, label: '3秒' },
+                      { sec: 5, label: '5秒 ★' },
+                      { sec: 8, label: '8秒' },
+                      { sec: 10, label: '10秒' },
+                    ].map(item => {
+                      const currentInvisSec = gameState.invisDurationSec !== undefined ? gameState.invisDurationSec : 5;
+                      const isSelected = currentInvisSec === item.sec;
+                      return (
+                        <button
+                          key={item.sec}
+                          type="button"
+                          onClick={() => socket.emit('set_invis_duration', { roomId, durationSec: item.sec })}
+                          className={`py-1.5 rounded-xl text-center font-bold text-[11px] transition-all border ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-purple-500 via-indigo-600 to-violet-600 text-white border-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.5)] font-black scale-105'
+                              : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 7. Score Settings Expandable */}
                 <div className="pt-2 border-t border-slate-800">
                   <button
                     type="button"
@@ -712,6 +752,7 @@ export default function GameScreen() {
                 <span className="text-xs bg-black/30 font-bold px-2.5 py-1 rounded-full border border-white/20">
                   {Math.floor((gameState.gameDuration || 180000) / 60000)}分戦
                   {gameState.shieldDurationSec !== 0 ? ` | 🛡️無敵${gameState.shieldDurationSec ?? 3}秒` : ' | 🛡️無効'}
+                  {gameState.invisDurationSec !== 0 ? ` | 🕶️透明${gameState.invisDurationSec ?? 5}秒` : ' | 🕶️無効'}
                 </span>
               </motion.button>
 
