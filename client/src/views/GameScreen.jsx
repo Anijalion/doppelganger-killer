@@ -577,13 +577,14 @@ export default function GameScreen() {
                     <EyeOff size={13} className="text-purple-400" />
                     光学迷彩 (透明化の効果秒数)
                   </label>
-                  <div className="grid grid-cols-5 gap-1">
+                  <div className="grid grid-cols-6 gap-1">
                     {[
                       { sec: 0, label: 'オフ' },
-                      { sec: 3, label: '3秒' },
                       { sec: 5, label: '5秒 ★' },
                       { sec: 8, label: '8秒' },
                       { sec: 10, label: '10秒' },
+                      { sec: 15, label: '15秒' },
+                      { sec: 30, label: '30秒' },
                     ].map(item => {
                       const currentInvisSec = gameState.invisDurationSec !== undefined ? gameState.invisDurationSec : 5;
                       const isSelected = currentInvisSec === item.sec;
@@ -592,7 +593,7 @@ export default function GameScreen() {
                           key={item.sec}
                           type="button"
                           onClick={() => socket.emit('set_invis_duration', { roomId, durationSec: item.sec })}
-                          className={`py-1.5 rounded-xl text-center font-bold text-[11px] transition-all border ${
+                          className={`py-1.5 rounded-xl text-center font-bold text-[10px] sm:text-[11px] transition-all border ${
                             isSelected
                               ? 'bg-gradient-to-r from-purple-500 via-indigo-600 to-violet-600 text-white border-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.5)] font-black scale-105'
                               : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'

@@ -294,7 +294,7 @@ io.on('connection', (socket) => {
   socket.on('set_invis_duration', ({ roomId, durationSec }) => {
     const room = rooms[roomId];
     if (room && room.state === 'waiting') {
-      const validDurations = [0, 3, 5, 8, 10];
+      const validDurations = [0, 3, 5, 8, 10, 15, 30];
       if (validDurations.includes(durationSec)) {
         room.invisDurationSec = durationSec;
         io.to(roomId).emit('room_settings_updated', {
